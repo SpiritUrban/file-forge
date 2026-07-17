@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-fn get_exif_orientation(path: &Path) -> Option<u32> {
+pub fn get_exif_orientation(path: &Path) -> Option<u32> {
     let file = File::open(path).ok()?;
     let mut reader = BufReader::new(file);
     let exif_reader = Reader::new();
@@ -13,7 +13,7 @@ fn get_exif_orientation(path: &Path) -> Option<u32> {
     orientation.value.get_uint(0)
 }
 
-fn apply_orientation(img: DynamicImage, orientation: u32) -> DynamicImage {
+pub fn apply_orientation(img: DynamicImage, orientation: u32) -> DynamicImage {
     match orientation {
         1 => img,
         2 => img.fliph(),
@@ -27,7 +27,7 @@ fn apply_orientation(img: DynamicImage, orientation: u32) -> DynamicImage {
     }
 }
 
-pub fn optimize_jpeg(input_path: &Path, output_path: &Path) -> Result<(), String> {
+pub fn optimize_jpeg(input_path: &Path, output_path: &Path, quality: u8) -> Result<(), String> {
     // Determine orientation (fail-safe to 1/normal if not present)
     let orientation = get_exif_orientation(input_path).unwrap_or(1);
 
@@ -37,9 +37,9 @@ pub fn optimize_jpeg(input_path: &Path, output_path: &Path) -> Result<(), String
     // Correct the orientation if necessary
     let oriented_img = apply_orientation(img, orientation);
 
-    // Write back optimized JPEG at quality 82
+    // Write back optimized JPEG at custom quality
     let file = File::create(output_path).map_err(|e| e.to_string())?;
-    let mut encoder = JpegEncoder::new_with_quality(file, 82);
+    let mut encoder = JpegEncoder::new_with_quality(file, quality);
     encoder
         .encode_image(&oriented_img)
         .map_err(|e| e.to_string())?;

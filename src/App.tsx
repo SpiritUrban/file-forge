@@ -11,6 +11,13 @@ function App() {
   const [convertPngToWebp, setConvertPngToWebp] = useState<boolean>(false);
   const [optimizeSvg, setOptimizeSvg] = useState<boolean>(true);
   const [optimizeWebp, setOptimizeWebp] = useState<boolean>(true);
+  const [jpegQuality, setJpegQuality] = useState<number>(82);
+  const [resizeImages, setResizeImages] = useState<boolean>(false);
+  const [maxWidth, setMaxWidth] = useState<number>(1920);
+  const [maxHeight, setMaxHeight] = useState<number>(1080);
+  const [theme, setTheme] = useState<"light" | "dark">(
+    (localStorage.getItem("theme") as any) || "light"
+  );
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [progress, setProgress] = useState<JobProgress>({
     status: "idle",
@@ -61,6 +68,16 @@ function App() {
     };
   }, []);
 
+  // Sync theme
+  useEffect(() => {
+    if (theme === "dark") {
+      document.body.classList.add("dark");
+    } else {
+      document.body.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   const handleSelectFolder = async () => {
     try {
       setError(null);
@@ -84,7 +101,11 @@ function App() {
         options: {
           convertPngToWebp,
           optimizeSvg,
-          optimizeWebp
+          optimizeWebp,
+          jpegQuality,
+          resizeImages,
+          maxWidth,
+          maxHeight
         }
       });
     } catch (err: any) {
@@ -153,9 +174,18 @@ function App() {
       <div className="card">
         {/* Brand Header */}
         <header className="app-header">
-          <div className="logo-container">
-            <span className="logo-icon">✨</span>
-            <h1 className="logo-text">FileForge</h1>
+          <div className="header-top-row">
+            <div className="logo-container">
+              <span className="logo-icon">✨</span>
+              <h1 className="logo-text">FileForge</h1>
+            </div>
+            <button
+              className="theme-toggle-btn"
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              title="Перемкнути тему"
+            >
+              {theme === "light" ? "🌙" : "☀️"}
+            </button>
           </div>
           <p className="app-subtitle">
             Швидка та безпечна оптимізація ваших зображень без втрати якості
@@ -251,6 +281,80 @@ function App() {
                     <label htmlFor="optimizeWebp" className="toggle-label"></label>
                   </div>
                 </label>
+
+                <div className="setting-divider"></div>
+
+                {/* Quality Slider Control */}
+                <div className="setting-control-column">
+                  <div className="setting-info">
+                    <div className="slider-header-row">
+                      <span className="setting-name">Якість JPEG</span>
+                      <span className="slider-badge">{jpegQuality}%</span>
+                    </div>
+                    <span className="setting-desc">Вкажіть бажану якість стиснення від 1% до 100%.</span>
+                  </div>
+                  <div className="slider-container">
+                    <input
+                      type="range"
+                      min="1"
+                      max="100"
+                      value={jpegQuality}
+                      onChange={(e) => setJpegQuality(Number(e.target.value))}
+                      className="quality-slider"
+                    />
+                  </div>
+                </div>
+
+                <div className="setting-divider"></div>
+
+                {/* Resizing Controls */}
+                <div className="setting-control-column">
+                  <label className="setting-control">
+                    <div className="setting-info">
+                      <span className="setting-name">Зменшувати великі зображення</span>
+                      <span className="setting-desc">Зменшує роздільну здатність файлів пропорційно під задані ліміти.</span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="resizeImages"
+                        className="toggle-checkbox"
+                        checked={resizeImages}
+                        onChange={(e) => setResizeImages(e.target.checked)}
+                      />
+                      <label htmlFor="resizeImages" className="toggle-label"></label>
+                    </div>
+                  </label>
+
+                  {resizeImages && (
+                    <div className="resize-inputs-row">
+                      <div className="resize-input-group">
+                        <label htmlFor="maxWidth" className="input-mini-label">Макс. ширина (px)</label>
+                        <input
+                          type="number"
+                          id="maxWidth"
+                          min="10"
+                          max="99999"
+                          value={maxWidth}
+                          onChange={(e) => setMaxWidth(Math.max(10, Number(e.target.value)))}
+                          className="number-input"
+                        />
+                      </div>
+                      <div className="resize-input-group">
+                        <label htmlFor="maxHeight" className="input-mini-label">Макс. висота (px)</label>
+                        <input
+                          type="number"
+                          id="maxHeight"
+                          min="10"
+                          max="99999"
+                          value={maxHeight}
+                          onChange={(e) => setMaxHeight(Math.max(10, Number(e.target.value)))}
+                          className="number-input"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

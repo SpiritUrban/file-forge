@@ -730,4 +730,228 @@ body {
   transform: translateX(20px);
 }
 
+.header-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.theme-toggle-btn {
+  background: var(--secondary-color);
+  border: 1px solid var(--secondary-border);
+  color: var(--text-main);
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-toggle-btn:hover {
+  background: var(--secondary-hover);
+  transform: scale(1.05);
+}
+
+.setting-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 4px 0;
+}
+
+.setting-control-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slider-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.slider-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: var(--primary-color);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.slider-container {
+  width: 100%;
+  padding: 4px 0;
+}
+
+/* Premium range slider */
+.quality-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  outline: none;
+  transition: background 0.15s ease-in-out;
+}
+
+.quality-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.quality-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+  margin-top: -6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.1s ease;
+}
+
+.quality-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* Resizing fields */
+.resize-inputs-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.resize-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.input-mini-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.number-input {
+  background: #ffffff;
+  border: 1px solid var(--secondary-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.number-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.1);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Global Dark Mode Override */
+body.dark {
+  --bg-color: #0f172a;
+  --card-bg: rgba(30, 41, 59, 0.85);
+  --card-border: rgba(51, 65, 85, 0.8);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  --secondary-color: #1e293b;
+  --secondary-hover: #334155;
+  --secondary-border: #334155;
+}
+
+/* Adjust inputs, cards, comparison indicators in Dark mode */
+body.dark .path-group,
+body.dark .current-file-box,
+body.dark .size-comparison-row {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .path-value {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #f8fafc;
+}
+
+body.dark .path-value.highlight {
+  border-color: #312e81;
+  background: #1e1b4b;
+  color: #818cf8;
+}
+
+body.dark .settings-panel,
+body.dark .mini-card,
+body.dark .stat-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .setting-divider {
+  background: #334155;
+}
+
+body.dark .number-input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark .slider-badge {
+  background: #312e81;
+  color: #818cf8;
+}
+
+body.dark .savings-dashboard {
+  background: linear-gradient(135deg, #1e1b4b 0%, #0c4a6e 100%);
+}
+
+body.dark .savings-amount {
+  color: #f8fafc;
+}
+
+body.dark .savings-label {
+  color: #818cf8;
+}
+
+body.dark .savings-badge {
+  background: #6366f1;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.4);
+}
+
+body.dark .logo-text {
+  background: linear-gradient(135deg, #818cf8 0%, #22d3ee 100%);
+  -webkit-background-clip: text;
+}
+
+
 

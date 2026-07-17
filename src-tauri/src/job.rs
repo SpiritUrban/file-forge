@@ -209,15 +209,49 @@ pub fn run_optimization_job(
             }
             FileType::Jpeg => {
                 let temp = out_file_path.with_extension("jpg.fileforge.tmp");
-                (optimize_jpeg(&in_file_path, &temp), temp, false)
+                if options.resize_images {
+                    (
+                        process_with_resize_and_optimize(
+                            &in_file_path,
+                            &temp,
+                            FileType::Jpeg,
+                            &options,
+                        ),
+                        temp,
+                        false,
+                    )
+                } else {
+                    (
+                        optimize_jpeg(&in_file_path, &temp, options.jpeg_quality),
+                        temp,
+                        false,
+                    )
+                }
             }
             FileType::Png => {
                 if options.convert_png_to_webp {
                     let temp = out_file_path.with_extension("webp.fileforge.tmp");
                     (
-                        crate::optimizer::webp::optimize_webp(&in_file_path, &temp),
+                        process_with_resize_and_optimize(
+                            &in_file_path,
+                            &temp,
+                            FileType::Webp,
+                            &options,
+                        ),
                         temp,
                         true,
+                    )
+                } else if options.resize_images {
+                    let temp = out_file_path.with_extension("png.fileforge.tmp");
+                    (
+                        process_with_resize_and_optimize(
+                            &in_file_path,
+                            &temp,
+                            FileType::Png,
+                            &options,
+                        ),
+                        temp,
+                        false,
                     )
                 } else {
                     let temp = out_file_path.with_extension("png.fileforge.tmp");
@@ -227,11 +261,24 @@ pub fn run_optimization_job(
             FileType::Webp => {
                 if options.optimize_webp {
                     let temp = out_file_path.with_extension("webp.fileforge.tmp");
-                    (
-                        crate::optimizer::webp::optimize_webp(&in_file_path, &temp),
-                        temp,
-                        false,
-                    )
+                    if options.resize_images {
+                        (
+                            process_with_resize_and_optimize(
+                                &in_file_path,
+                                &temp,
+                                FileType::Webp,
+                                &options,
+                            ),
+                            temp,
+                            false,
+                        )
+                    } else {
+                        (
+                            crate::optimizer::webp::optimize_webp(&in_file_path, &temp),
+                            temp,
+                            false,
+                        )
+                    }
                 } else {
                     (
                         Err("webp optimization disabled".to_string()),
@@ -339,6 +386,70 @@ pub fn run_optimization_job(
     *running = false;
 }
 
+fn process_with_resize_and_optimize(
+    in_file_path: &Path,
+    temp_file_path: &Path,
+    file_type: FileType,
+    options: &crate::models::JobOptions,
+) -> Result<(), String> {
+    // 1. Load image
+    let img = image::open(in_file_path).map_err(|e| e.to_string())?;
+
+    // 2. For JPEGs, apply EXIF orientation first so resizing happens on correct orientation
+    let img = if file_type == FileType::Jpeg {
+        let orientation = crate::optimizer::jpeg::get_exif_orientation(in_file_path).unwrap_or(1);
+        crate::optimizer::jpeg::apply_orientation(img, orientation)
+    } else {
+        img
+    };
+
+    // 3. Resize if needed
+    let img = if options.resize_images {
+        if img.width() > options.max_width || img.height() > options.max_height {
+            img.resize(
+                options.max_width,
+                options.max_height,
+                image::imageops::FilterType::Lanczos3,
+            )
+        } else {
+            img
+        }
+    } else {
+        img
+    };
+
+    // 4. Save to temp path depending on destination format
+    match file_type {
+        FileType::Jpeg => {
+            let file = std::fs::File::create(temp_file_path).map_err(|e| e.to_string())?;
+            let mut encoder =
+                image::codecs::jpeg::JpegEncoder::new_with_quality(file, options.jpeg_quality);
+            encoder.encode_image(&img).map_err(|e| e.to_string())?;
+        }
+        FileType::Png => {
+            // Save as PNG
+            img.save(temp_file_path).map_err(|e| e.to_string())?;
+            // Optimize PNG with oxipng on the resized file
+            let _ = crate::optimizer::png::optimize_png(temp_file_path, temp_file_path);
+        }
+        FileType::Webp => {
+            let file = std::fs::File::create(temp_file_path).map_err(|e| e.to_string())?;
+            let encoder = image::codecs::webp::WebPEncoder::new_lossless(file);
+            encoder
+                .encode(
+                    img.as_bytes(),
+                    img.width(),
+                    img.height(),
+                    img.color().into(),
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        _ => unreachable!(),
+    }
+
+    Ok(())
+}
+
 fn copy_fallback_helper(
     in_file_path: &Path,
     out_file_path: &Path,
@@ -409,6 +520,37 @@ mod tests {
         assert!(result_svg.contains("<circle cx="));
 
         let _ = fs::remove_dir_all(&base_temp);
+    }
+
+    #[test]
+    fn test_resize_bounds() {
+        // Test that resize() proportionally scales down when either dimension exceeds limits.
+        // We build a synthetic 800x600 image and verify boundaries are respected.
+        let img = image::DynamicImage::new_rgb8(800, 600);
+
+        let max_w = 400u32;
+        let max_h = 400u32;
+
+        let resized = if img.width() > max_w || img.height() > max_h {
+            img.resize(max_w, max_h, image::imageops::FilterType::Lanczos3)
+        } else {
+            img
+        };
+
+        assert!(
+            resized.width() <= max_w,
+            "Width exceeded max: {}",
+            resized.width()
+        );
+        assert!(
+            resized.height() <= max_h,
+            "Height exceeded max: {}",
+            resized.height()
+        );
+
+        // Check proportional: 800x600 bounded by 400x400 → should be 400x300
+        assert_eq!(resized.width(), 400);
+        assert_eq!(resized.height(), 300);
     }
 
     #[test]

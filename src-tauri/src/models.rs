@@ -49,4 +49,8 @@ pub struct JobOptions {
     pub convert_png_to_webp: bool,
     pub optimize_svg: bool,
     pub optimize_webp: bool,
+    pub jpeg_quality: u8,
+    pub resize_images: bool,
+    pub max_width: u32,
+    pub max_height: u32,
 }

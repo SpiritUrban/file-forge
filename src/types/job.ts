@@ -28,4 +28,8 @@ export interface JobOptions {
   convertPngToWebp: boolean;
   optimizeSvg: boolean;
   optimizeWebp: boolean;
+  jpegQuality: number;
+  resizeImages: boolean;
+  maxWidth: number;
+  maxHeight: number;
 }
