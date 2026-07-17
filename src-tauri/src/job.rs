@@ -2,14 +2,17 @@ use crate::models::{JobProgress, JobStatus};
 use crate::optimizer::jpeg::optimize_jpeg;
 use crate::optimizer::png::optimize_png;
 use crate::scanner::scan_directory;
+use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
 pub struct ActiveJob {
     pub progress: Mutex<JobProgress>,
     pub running: Mutex<bool>,
+    pub cancelled: AtomicBool,
 }
 
 impl Default for ActiveJob {
@@ -23,6 +26,7 @@ impl ActiveJob {
         Self {
             progress: Mutex::new(JobProgress::default()),
             running: Mutex::new(false),
+            cancelled: AtomicBool::new(false),
         }
     }
 }
@@ -80,11 +84,12 @@ pub fn run_optimization_job(
     output_path: PathBuf,
     active_job: Arc<crate::ActiveJob>,
 ) {
-    // 1. Set status to scanning
+    // 1. Set status to scanning and reset cancelled flag
     {
         let mut progress = active_job.progress.lock().unwrap();
         *progress = JobProgress::default();
         progress.status = JobStatus::Scanning;
+        active_job.cancelled.store(false, Ordering::Relaxed);
     }
     let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
 
@@ -152,8 +157,12 @@ pub fn run_optimization_job(
         }
     }
 
-    // 6. Process files
-    for (rel_path, orig_size) in &scanned.files {
+    // 6. Process files concurrently
+    scanned.files.par_iter().for_each(|(rel_path, orig_size)| {
+        if active_job.cancelled.load(Ordering::Relaxed) {
+            return;
+        }
+
         let in_file_path = input_path.join(rel_path);
         let out_file_path = output_path.join(rel_path);
 
@@ -198,6 +207,11 @@ pub fn run_optimization_job(
                     FileType::Png => optimize_png(&in_file_path, &temp_file_path),
                     _ => unreachable!(),
                 };
+
+                if active_job.cancelled.load(Ordering::Relaxed) {
+                    let _ = fs::remove_file(&temp_file_path);
+                    return;
+                }
 
                 match optimize_result {
                     Ok(_) => {
@@ -249,12 +263,17 @@ pub fn run_optimization_job(
             }
         }
         let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
-    }
+    });
 
-    // 7. Mark as completed
+    // 7. Mark as completed or cancelled
+    let was_cancelled = active_job.cancelled.load(Ordering::Relaxed);
     {
         let mut progress = active_job.progress.lock().unwrap();
-        progress.status = JobStatus::Completed;
+        if was_cancelled {
+            progress.status = JobStatus::Cancelled;
+        } else {
+            progress.status = JobStatus::Completed;
+        }
         progress.current_file = None;
     }
     let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());

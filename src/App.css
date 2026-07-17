@@ -582,3 +582,50 @@ body {
     width: 100%;
   }
 }
+
+/* Cancelled State & Buttons */
+.btn-danger-hover:hover:not(:disabled) {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: var(--danger-color) !important;
+}
+
+.cancelled-state {
+  display: flex;
+  flex-direction: column;
+}
+
+.warning-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.warning-badge {
+  background: #fef3c7;
+  color: #d97706;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.savings-dashboard.warning-bg {
+  background: linear-gradient(135deg, #fef3c7 0%, #fee2e2 100%);
+}
+
+.savings-dashboard.warning-bg .savings-label {
+  color: #d97706;
+}
+
+.savings-dashboard.warning-bg .savings-badge {
+  background: #d97706;
+  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
+}
+

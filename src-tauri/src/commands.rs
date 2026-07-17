@@ -100,6 +100,14 @@ fn open_path(path: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn cancel_optimization(state: tauri::State<'_, Arc<ActiveJob>>) -> Result<(), String> {
+    state
+        .cancelled
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn open_folder(path: String) -> Result<(), String> {
     open_path(&path)
 }

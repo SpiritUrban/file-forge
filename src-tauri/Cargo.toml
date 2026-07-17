@@ -27,6 +27,7 @@ kamadak-exif = "0.6"
 oxipng = "9.1"
 rfd = "0.14"
 walkdir = "2.5"
+rayon = "1.10"
 
 
 

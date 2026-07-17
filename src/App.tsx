@@ -8,6 +8,7 @@ function App() {
   const [inputPath, setInputPath] = useState<string>("");
   const [outputPath, setOutputPath] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [progress, setProgress] = useState<JobProgress>({
     status: "idle",
     totalFiles: 0,
@@ -39,8 +40,8 @@ function App() {
     const setupListeners = async () => {
       unlistenProgress = await listen<JobProgress>("job-progress", (event) => {
         setProgress(event.payload);
-        if (event.payload.status === "completed" || event.payload.status === "failed") {
-          // Keep paths but clear error unless it's a validation error
+        if (event.payload.status !== "processing" && event.payload.status !== "scanning") {
+          setIsCancelling(false);
         }
       });
 
@@ -89,10 +90,21 @@ function App() {
     }
   };
 
+  const handleCancel = async () => {
+    try {
+      setIsCancelling(true);
+      await invoke("cancel_optimization");
+    } catch (err: any) {
+      setError(err.toString());
+      setIsCancelling(false);
+    }
+  };
+
   const handleReset = () => {
     setInputPath("");
     setOutputPath("");
     setError(null);
+    setIsCancelling(false);
     setProgress({
       status: "idle",
       totalFiles: 0,
@@ -201,6 +213,16 @@ function App() {
             </div>
             <h2 className="state-title">Підготовка файлів...</h2>
             <p className="state-detail">Рекурсивне сканування папки та підрахунок розміру</p>
+            
+            <div className="action-row" style={{ marginTop: "24px" }}>
+              <button
+                className="btn btn-secondary btn-danger-hover"
+                onClick={handleCancel}
+                disabled={isCancelling}
+              >
+                {isCancelling ? "Скасування..." : "Скасувати"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -254,6 +276,16 @@ function App() {
                   <span className="mini-label">Помилки</span>
                 </div>
               )}
+            </div>
+
+            <div className="action-row" style={{ marginTop: "24px" }}>
+              <button
+                className="btn btn-secondary btn-danger-hover"
+                onClick={handleCancel}
+                disabled={isCancelling}
+              >
+                {isCancelling ? "Скасування..." : "Скасувати"}
+              </button>
             </div>
           </div>
         )}
@@ -326,7 +358,73 @@ function App() {
           </div>
         )}
 
-        {/* 6. FAILED STATE */}
+        {/* 6. CANCELLED STATE */}
+        {status === "cancelled" && (
+          <div className="cancelled-state">
+            <div className="warning-header">
+              <div className="warning-badge">!</div>
+              <h2 className="state-title">Оптимізацію скасовано</h2>
+            </div>
+            
+            <p className="app-subtitle" style={{ marginBottom: "24px", textAlign: "center" }}>
+              Обробку файлів було зупинено. Результати обробки до моменту скасування:
+            </p>
+
+            {/* Size Savings Dashboard */}
+            <div className="savings-dashboard warning-bg">
+              <div className="savings-main">
+                <span className="savings-amount">{formatBytes(savedBytes)}</span>
+                <span className="savings-label">Простору зекономлено</span>
+              </div>
+              {savedPercent > 0 && (
+                <div className="savings-badge">-{savedPercent.toFixed(1)}%</div>
+              )}
+            </div>
+
+            <div className="size-comparison-row">
+              <div className="size-part">
+                <span className="size-label">Початковий розмір</span>
+                <span className="size-val">{formatBytes(progress.originalBytes)}</span>
+              </div>
+              <div className="size-divider">➔</div>
+              <div className="size-part">
+                <span className="size-label">Поточний розмір</span>
+                <span className="size-val">{formatBytes(progress.outputBytes)}</span>
+              </div>
+            </div>
+
+            {/* Detail stats grid */}
+            <div className="stats-grid">
+              <div className="stat-card">
+                <span className="stat-value">{progress.processedFiles} / {progress.totalFiles}</span>
+                <span className="stat-label">Оброблено файлів</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-value text-success">{progress.optimizedFiles}</span>
+                <span className="stat-label">Оптимізовано</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-value text-info">{progress.copiedFiles}</span>
+                <span className="stat-label">Скопійовано</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-value text-warning">{progress.originalKeptFiles}</span>
+                <span className="stat-label">Без змін</span>
+              </div>
+            </div>
+
+            <div className="action-row font-large">
+              <button className="btn btn-secondary" onClick={handleReset}>
+                Обрати іншу папку
+              </button>
+              <button className="btn btn-primary btn-glow" onClick={handleOpenFolder}>
+                Відкрити результат
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 7. FAILED STATE */}
         {status === "failed" && (
           <div className="failed-state">
             <div className="failed-header">

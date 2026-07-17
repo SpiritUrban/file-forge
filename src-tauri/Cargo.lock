@@ -4348,6 +4348,7 @@ dependencies = [
  "image",
  "kamadak-exif",
  "oxipng",
+ "rayon",
  "rfd",
  "serde",
  "serde_json",

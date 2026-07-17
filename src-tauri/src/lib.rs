@@ -18,7 +18,8 @@ pub fn run() {
             commands::select_folder,
             commands::start_optimization,
             commands::get_job_progress,
-            commands::open_folder
+            commands::open_folder,
+            commands::cancel_optimization
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

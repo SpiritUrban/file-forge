@@ -8,6 +8,7 @@ pub enum JobStatus {
     Processing,
     Completed,
     Failed,
+    Cancelled,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

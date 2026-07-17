@@ -3,7 +3,8 @@ export type JobStatus =
   | "scanning"
   | "processing"
   | "completed"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export interface JobProgress {
   status: JobStatus;
