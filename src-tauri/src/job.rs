@@ -35,6 +35,8 @@ impl ActiveJob {
 pub enum FileType {
     Jpeg,
     Png,
+    Webp,
+    Svg,
     Other,
 }
 
@@ -45,6 +47,10 @@ pub fn classify_file(path: &Path) -> FileType {
             FileType::Jpeg
         } else if ext_lower == "png" {
             FileType::Png
+        } else if ext_lower == "webp" {
+            FileType::Webp
+        } else if ext_lower == "svg" {
+            FileType::Svg
         } else {
             FileType::Other
         }
@@ -83,6 +89,7 @@ pub fn run_optimization_job(
     input_path: PathBuf,
     output_path: PathBuf,
     active_job: Arc<crate::ActiveJob>,
+    options: crate::models::JobOptions,
 ) {
     // 1. Set status to scanning and reset cancelled flag
     {
@@ -164,7 +171,15 @@ pub fn run_optimization_job(
         }
 
         let in_file_path = input_path.join(rel_path);
-        let out_file_path = output_path.join(rel_path);
+        let file_type = classify_file(&in_file_path);
+
+        let is_png_to_webp = file_type == FileType::Png && options.convert_png_to_webp;
+        let out_rel_path = if is_png_to_webp {
+            rel_path.with_extension("webp")
+        } else {
+            rel_path.clone()
+        };
+        let out_file_path = output_path.join(&out_rel_path);
 
         // Safety fallback: ensure parent directory exists
         if let Some(parent) = out_file_path.parent() {
@@ -178,88 +193,130 @@ pub fn run_optimization_job(
         }
         let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
 
-        let file_type = classify_file(&in_file_path);
-
-        match file_type {
-            FileType::Other => match fs::copy(&in_file_path, &out_file_path) {
-                Ok(_) => {
+        let optimize_result = match file_type {
+            FileType::Other => {
+                if fs::copy(&in_file_path, &out_file_path).is_ok() {
                     let mut progress = active_job.progress.lock().unwrap();
                     progress.processed_files += 1;
                     progress.copied_files += 1;
                     progress.output_bytes += orig_size;
-                }
-                Err(e) => {
-                    println!("Failed to copy file {:?}: {:?}", in_file_path, e);
+                } else {
                     let mut progress = active_job.progress.lock().unwrap();
                     progress.processed_files += 1;
                     progress.failed_files += 1;
                 }
-            },
-            FileType::Jpeg | FileType::Png => {
-                let ext = out_file_path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
-                let temp_file_path = out_file_path.with_extension(format!("{}.fileforge.tmp", ext));
-
-                let optimize_result = match file_type {
-                    FileType::Jpeg => optimize_jpeg(&in_file_path, &temp_file_path),
-                    FileType::Png => optimize_png(&in_file_path, &temp_file_path),
-                    _ => unreachable!(),
-                };
-
-                if active_job.cancelled.load(Ordering::Relaxed) {
-                    let _ = fs::remove_file(&temp_file_path);
-                    return;
+                return;
+            }
+            FileType::Jpeg => {
+                let temp = out_file_path.with_extension("jpg.fileforge.tmp");
+                (optimize_jpeg(&in_file_path, &temp), temp, false)
+            }
+            FileType::Png => {
+                if options.convert_png_to_webp {
+                    let temp = out_file_path.with_extension("webp.fileforge.tmp");
+                    (
+                        crate::optimizer::webp::optimize_webp(&in_file_path, &temp),
+                        temp,
+                        true,
+                    )
+                } else {
+                    let temp = out_file_path.with_extension("png.fileforge.tmp");
+                    (optimize_png(&in_file_path, &temp), temp, false)
                 }
+            }
+            FileType::Webp => {
+                if options.optimize_webp {
+                    let temp = out_file_path.with_extension("webp.fileforge.tmp");
+                    (
+                        crate::optimizer::webp::optimize_webp(&in_file_path, &temp),
+                        temp,
+                        false,
+                    )
+                } else {
+                    (
+                        Err("webp optimization disabled".to_string()),
+                        PathBuf::new(),
+                        false,
+                    )
+                }
+            }
+            FileType::Svg => {
+                if options.optimize_svg {
+                    let temp = out_file_path.with_extension("svg.fileforge.tmp");
+                    (
+                        crate::optimizer::svg::optimize_svg(&in_file_path, &temp),
+                        temp,
+                        false,
+                    )
+                } else {
+                    (
+                        Err("svg optimization disabled".to_string()),
+                        PathBuf::new(),
+                        false,
+                    )
+                }
+            }
+        };
 
-                match optimize_result {
-                    Ok(_) => {
-                        let temp_size = fs::metadata(&temp_file_path)
-                            .map(|m| m.len())
-                            .unwrap_or(u64::MAX);
-                        if temp_size < *orig_size {
-                            if let Err(e) = fs::rename(&temp_file_path, &out_file_path) {
-                                println!("Failed to rename temp file: {:?}", e);
-                                let _ = fs::remove_file(&temp_file_path);
-                                if fs::copy(&in_file_path, &out_file_path).is_ok() {
-                                    let mut progress = active_job.progress.lock().unwrap();
-                                    progress.processed_files += 1;
-                                    progress.original_kept_files += 1;
-                                    progress.output_bytes += orig_size;
-                                } else {
-                                    let mut progress = active_job.progress.lock().unwrap();
-                                    progress.processed_files += 1;
-                                    progress.failed_files += 1;
-                                }
-                            } else {
-                                let mut progress = active_job.progress.lock().unwrap();
-                                progress.processed_files += 1;
-                                progress.optimized_files += 1;
-                                progress.output_bytes += temp_size;
-                            }
-                        } else {
-                            let _ = fs::remove_file(&temp_file_path);
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
-                                let mut progress = active_job.progress.lock().unwrap();
-                                progress.processed_files += 1;
-                                progress.original_kept_files += 1;
-                                progress.output_bytes += orig_size;
-                            } else {
-                                let mut progress = active_job.progress.lock().unwrap();
-                                progress.processed_files += 1;
-                                progress.failed_files += 1;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("Failed to optimize file {:?}: {:?}", in_file_path, e);
+        if active_job.cancelled.load(Ordering::Relaxed) {
+            if optimize_result.1.exists() {
+                let _ = fs::remove_file(&optimize_result.1);
+            }
+            return;
+        }
+
+        let (res, temp_file_path, always_keep) = optimize_result;
+
+        match res {
+            Ok(_) => {
+                let temp_size = fs::metadata(&temp_file_path)
+                    .map(|m| m.len())
+                    .unwrap_or(u64::MAX);
+                if always_keep || temp_size < *orig_size {
+                    if let Err(e) = fs::rename(&temp_file_path, &out_file_path) {
+                        println!("Failed to rename temp file: {:?}", e);
                         let _ = fs::remove_file(&temp_file_path);
+                        copy_fallback_helper(
+                            &in_file_path,
+                            &out_file_path,
+                            &output_path,
+                            rel_path,
+                            is_png_to_webp,
+                            orig_size,
+                            active_job.clone(),
+                        );
+                    } else {
                         let mut progress = active_job.progress.lock().unwrap();
                         progress.processed_files += 1;
-                        progress.failed_files += 1;
+                        progress.optimized_files += 1;
+                        progress.output_bytes += temp_size;
                     }
+                } else {
+                    let _ = fs::remove_file(&temp_file_path);
+                    copy_fallback_helper(
+                        &in_file_path,
+                        &out_file_path,
+                        &output_path,
+                        rel_path,
+                        is_png_to_webp,
+                        orig_size,
+                        active_job.clone(),
+                    );
                 }
+            }
+            Err(_) => {
+                if temp_file_path.exists() {
+                    let _ = fs::remove_file(&temp_file_path);
+                }
+                copy_fallback_helper(
+                    &in_file_path,
+                    &out_file_path,
+                    &output_path,
+                    rel_path,
+                    is_png_to_webp,
+                    orig_size,
+                    active_job.clone(),
+                );
             }
         }
         let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
@@ -282,6 +339,32 @@ pub fn run_optimization_job(
     *running = false;
 }
 
+fn copy_fallback_helper(
+    in_file_path: &Path,
+    out_file_path: &Path,
+    output_path: &Path,
+    rel_path: &Path,
+    is_png_to_webp: bool,
+    orig_size: &u64,
+    active_job: Arc<crate::ActiveJob>,
+) {
+    let fallback_target = if is_png_to_webp {
+        output_path.join(rel_path)
+    } else {
+        out_file_path.to_path_buf()
+    };
+    if fs::copy(in_file_path, &fallback_target).is_ok() {
+        let mut progress = active_job.progress.lock().unwrap();
+        progress.processed_files += 1;
+        progress.original_kept_files += 1;
+        progress.output_bytes += orig_size;
+    } else {
+        let mut progress = active_job.progress.lock().unwrap();
+        progress.processed_files += 1;
+        progress.failed_files += 1;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,8 +375,40 @@ mod tests {
         assert_eq!(classify_file(Path::new("photo.jpg")), FileType::Jpeg);
         assert_eq!(classify_file(Path::new("photo.JPEG")), FileType::Jpeg);
         assert_eq!(classify_file(Path::new("image.png")), FileType::Png);
+        assert_eq!(classify_file(Path::new("image.webp")), FileType::Webp);
+        assert_eq!(classify_file(Path::new("vector.svg")), FileType::Svg);
         assert_eq!(classify_file(Path::new("video.mp4")), FileType::Other);
         assert_eq!(classify_file(Path::new("no_extension")), FileType::Other);
+    }
+
+    #[test]
+    fn test_svg_optimization() {
+        let base_temp = std::env::temp_dir().join("file_forge_svg_test");
+        let _ = fs::remove_dir_all(&base_temp);
+        fs::create_dir_all(&base_temp).unwrap();
+
+        let input_svg = base_temp.join("input.svg");
+        let output_svg = base_temp.join("output.svg");
+
+        let raw_svg = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated by SVG Editor -->
+<svg width="100" height="100">
+    <metadata>
+        <editor:custom-tag>Some bloat metadata</editor:custom-tag>
+    </metadata>
+    <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
+</svg>"#;
+
+        fs::write(&input_svg, raw_svg).unwrap();
+        crate::optimizer::svg::optimize_svg(&input_svg, &output_svg).unwrap();
+
+        let result_svg = fs::read_to_string(&output_svg).unwrap();
+        assert!(!result_svg.contains("Generated by SVG Editor"));
+        assert!(!result_svg.contains("<metadata>"));
+        assert!(!result_svg.contains("Some bloat metadata"));
+        assert!(result_svg.contains("<circle cx="));
+
+        let _ = fs::remove_dir_all(&base_temp);
     }
 
     #[test]

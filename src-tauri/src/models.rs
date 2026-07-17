@@ -42,3 +42,11 @@ impl Default for JobProgress {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct JobOptions {
+    pub convert_png_to_webp: bool,
+    pub optimize_svg: bool,
+    pub optimize_webp: bool,
+}

@@ -51,6 +51,7 @@ pub async fn select_folder() -> Result<Option<FolderSelection>, String> {
 pub fn start_optimization(
     input_path: String,
     output_path: String,
+    options: crate::models::JobOptions,
     state: tauri::State<'_, Arc<ActiveJob>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
@@ -65,7 +66,7 @@ pub fn start_optimization(
     let output = std::path::PathBuf::from(output_path);
 
     std::thread::spawn(move || {
-        crate::job::run_optimization_job(app, input, output, active_job);
+        crate::job::run_optimization_job(app, input, output, active_job, options);
     });
 
     Ok(())

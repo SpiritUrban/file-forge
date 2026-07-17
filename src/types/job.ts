@@ -23,3 +23,9 @@ export interface FolderSelection {
   inputPath: string;
   outputPath: string;
 }
+
+export interface JobOptions {
+  convertPngToWebp: boolean;
+  optimizeSvg: boolean;
+  optimizeWebp: boolean;
+}

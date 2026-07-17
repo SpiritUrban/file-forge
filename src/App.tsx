@@ -8,6 +8,9 @@ function App() {
   const [inputPath, setInputPath] = useState<string>("");
   const [outputPath, setOutputPath] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [convertPngToWebp, setConvertPngToWebp] = useState<boolean>(false);
+  const [optimizeSvg, setOptimizeSvg] = useState<boolean>(true);
+  const [optimizeWebp, setOptimizeWebp] = useState<boolean>(true);
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [progress, setProgress] = useState<JobProgress>({
     status: "idle",
@@ -75,7 +78,15 @@ function App() {
     if (!inputPath || !outputPath) return;
     try {
       setError(null);
-      await invoke("start_optimization", { inputPath, outputPath });
+      await invoke("start_optimization", { 
+        inputPath, 
+        outputPath,
+        options: {
+          convertPngToWebp,
+          optimizeSvg,
+          optimizeWebp
+        }
+      });
     } catch (err: any) {
       setError(err.toString());
     }
@@ -183,6 +194,63 @@ function App() {
               <div className="path-row">
                 <span className="path-label">Папка результату:</span>
                 <span className="path-value highlight">{outputPath}</span>
+              </div>
+            </div>
+
+            {/* Options Settings Card */}
+            <div className="settings-panel">
+              <h3 className="settings-title">Налаштування обробки</h3>
+              <div className="settings-options">
+                <label className="setting-control">
+                  <div className="setting-info">
+                    <span className="setting-name">Конвертувати PNG в WebP</span>
+                    <span className="setting-desc">Автоматично конвертує оригінальні PNG у WebP формат.</span>
+                  </div>
+                  <div className="toggle-container">
+                    <input
+                      type="checkbox"
+                      id="convertPngToWebp"
+                      className="toggle-checkbox"
+                      checked={convertPngToWebp}
+                      onChange={(e) => setConvertPngToWebp(e.target.checked)}
+                    />
+                    <label htmlFor="convertPngToWebp" className="toggle-label"></label>
+                  </div>
+                </label>
+
+                <label className="setting-control">
+                  <div className="setting-info">
+                    <span className="setting-name">Оптимізувати SVG</span>
+                    <span className="setting-desc">Видаляє коментарі, службові теги редакторів та зайві пробіли.</span>
+                  </div>
+                  <div className="toggle-container">
+                    <input
+                      type="checkbox"
+                      id="optimizeSvg"
+                      className="toggle-checkbox"
+                      checked={optimizeSvg}
+                      onChange={(e) => setOptimizeSvg(e.target.checked)}
+                    />
+                    <label htmlFor="optimizeSvg" className="toggle-label"></label>
+                  </div>
+                </label>
+
+                <label className="setting-control">
+                  <div className="setting-info">
+                    <span className="setting-name">Оптимізувати WebP</span>
+                    <span className="setting-desc">Стискає існуючі статичні WebP зображення без втрати якості.</span>
+                  </div>
+                  <div className="toggle-container">
+                    <input
+                      type="checkbox"
+                      id="optimizeWebp"
+                      className="toggle-checkbox"
+                      checked={optimizeWebp}
+                      onChange={(e) => setOptimizeWebp(e.target.checked)}
+                    />
+                    <label htmlFor="optimizeWebp" className="toggle-label"></label>
+                  </div>
+                </label>
               </div>
             </div>
 
