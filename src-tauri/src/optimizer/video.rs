@@ -4,6 +4,30 @@ use std::sync::Arc;
 
 /// Finds `ffmpeg` in PATH and returns its full path.
 pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
+    let possible_local_paths = [
+        "ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe",
+        "../ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe",
+    ];
+
+    for path in possible_local_paths {
+        let p = std::path::PathBuf::from(path);
+        if p.exists() {
+            if let Ok(canonical) = std::fs::canonicalize(&p) {
+                return Some(canonical);
+            }
+            return Some(p);
+        }
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            let bundled = parent.join("ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe");
+            if bundled.exists() {
+                return Some(bundled);
+            }
+        }
+    }
+
     which::which("ffmpeg").ok()
 }
 
