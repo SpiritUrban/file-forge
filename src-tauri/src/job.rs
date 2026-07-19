@@ -39,6 +39,8 @@ pub enum FileType {
     Svg,
     VideoVob,
     VideoAvi,
+    VideoMp4,
+    AudioWav,
     Other,
 }
 
@@ -57,6 +59,10 @@ pub fn classify_file(path: &Path) -> FileType {
             FileType::VideoVob
         } else if ext_lower == "avi" {
             FileType::VideoAvi
+        } else if ext_lower == "mp4" {
+            FileType::VideoMp4
+        } else if ext_lower == "wav" {
+            FileType::AudioWav
         } else {
             FileType::Other
         }
@@ -363,6 +369,111 @@ pub fn run_optimization_job(
                 let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
                 return;
             }
+            FileType::VideoMp4 => {
+                if options.optimize_mp4 {
+                    let temp = out_file_path.with_extension("mp4.fileforge.tmp");
+                    let result = crate::optimizer::video::optimize_mp4(
+                        &in_file_path,
+                        &temp,
+                        options.video_crf,
+                        active_job.clone(),
+                    );
+                    match result {
+                        Ok(_) => {
+                            let out_size = fs::metadata(&temp).map(|m| m.len()).unwrap_or(0);
+                            if out_size < *orig_size {
+                                let _ = fs::rename(&temp, &out_file_path);
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.optimized_files += 1;
+                                progress.output_bytes += out_size;
+                            } else {
+                                // Re-encoded file is larger — keep original
+                                let _ = fs::remove_file(&temp);
+                                if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                    let mut progress = active_job.progress.lock().unwrap();
+                                    progress.processed_files += 1;
+                                    progress.original_kept_files += 1;
+                                    progress.output_bytes += orig_size;
+                                }
+                            }
+                        }
+                        Err(ref e) if e == "Скасовано" => {
+                            let _ = fs::remove_file(&temp);
+                            return;
+                        }
+                        Err(_) => {
+                            let _ = fs::remove_file(&temp);
+                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.copied_files += 1;
+                                progress.output_bytes += orig_size;
+                            }
+                        }
+                    }
+                } else {
+                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.copied_files += 1;
+                        progress.output_bytes += orig_size;
+                    } else {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.failed_files += 1;
+                    }
+                }
+                let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                return;
+            }
+            FileType::AudioWav => {
+                if options.convert_wav_to_mp3 {
+                    let mp3_out = out_file_path.with_extension("mp3");
+                    if let Some(parent) = mp3_out.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let result = crate::optimizer::video::convert_wav_to_mp3(
+                        &in_file_path,
+                        &mp3_out,
+                        options.mp3_bitrate,
+                        active_job.clone(),
+                    );
+                    match result {
+                        Ok(_) => {
+                            let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
+                            let mut progress = active_job.progress.lock().unwrap();
+                            progress.processed_files += 1;
+                            progress.optimized_files += 1;
+                            progress.output_bytes += out_size;
+                        }
+                        Err(ref e) if e == "Скасовано" => {
+                            return;
+                        }
+                        Err(_) => {
+                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.copied_files += 1;
+                                progress.output_bytes += orig_size;
+                            }
+                        }
+                    }
+                } else {
+                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.copied_files += 1;
+                        progress.output_bytes += orig_size;
+                    } else {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.failed_files += 1;
+                    }
+                }
+                let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                return;
+            }
         };
 
         if active_job.cancelled.load(Ordering::Relaxed) {
@@ -548,7 +659,8 @@ mod tests {
         assert_eq!(classify_file(Path::new("image.png")), FileType::Png);
         assert_eq!(classify_file(Path::new("image.webp")), FileType::Webp);
         assert_eq!(classify_file(Path::new("vector.svg")), FileType::Svg);
-        assert_eq!(classify_file(Path::new("video.mp4")), FileType::Other);
+        assert_eq!(classify_file(Path::new("video.mp4")), FileType::VideoMp4);
+        assert_eq!(classify_file(Path::new("audio.wav")), FileType::AudioWav);
         assert_eq!(classify_file(Path::new("no_extension")), FileType::Other);
     }
 
@@ -558,8 +670,7 @@ mod tests {
         assert_eq!(classify_file(Path::new("movie.VOB")), FileType::VideoVob);
         assert_eq!(classify_file(Path::new("clip.avi")), FileType::VideoAvi);
         assert_eq!(classify_file(Path::new("clip.AVI")), FileType::VideoAvi);
-        // mp4 is NOT converted by us (it's already compact)
-        assert_eq!(classify_file(Path::new("already.mp4")), FileType::Other);
+        assert_eq!(classify_file(Path::new("already.mp4")), FileType::VideoMp4);
     }
 
     #[test]

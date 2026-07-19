@@ -17,6 +17,9 @@ function App() {
   const [maxHeight, setMaxHeight] = useState<number>(1080);
   const [convertVideo, setConvertVideo] = useState<boolean>(false);
   const [videoCrf, setVideoCrf] = useState<number>(23);
+  const [optimizeMp4, setOptimizeMp4] = useState<boolean>(false);
+  const [convertWavToMp3, setConvertWavToMp3] = useState<boolean>(false);
+  const [mp3Bitrate, setMp3Bitrate] = useState<number>(128);
   const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(
     (localStorage.getItem("theme") as any) || "light"
@@ -116,6 +119,9 @@ function App() {
           maxHeight,
           convertVideo,
           videoCrf,
+          convertWavToMp3,
+          mp3Bitrate,
+          optimizeMp4,
         }
       });
     } catch (err: any) {
@@ -428,6 +434,80 @@ function App() {
                       </div>
                     </div>
                   )}
+
+                  <label className="setting-control" style={{ marginTop: "16px" }}>
+                    <div className="setting-info">
+                      <span className="setting-name">Оптимізувати MP4 (профіль YouTube)</span>
+                      <span className="setting-desc">
+                        Перекодовує MP4 файли для суттєвого зменшення розміру (CRF {videoCrf}, slow preset).
+                        {ffmpegAvailable === false && " (потребує FFmpeg)"}
+                      </span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="optimizeMp4"
+                        className="toggle-checkbox"
+                        checked={optimizeMp4}
+                        disabled={ffmpegAvailable === false}
+                        onChange={(e) => setOptimizeMp4(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="optimizeMp4"
+                        className={`toggle-label${ffmpegAvailable === false ? " toggle-disabled" : ""}`}
+                      ></label>
+                    </div>
+                  </label>
+
+                  <label className="setting-control" style={{ marginTop: "16px" }}>
+                    <div className="setting-info">
+                      <span className="setting-name">Конвертувати WAV в MP3</span>
+                      <span className="setting-desc">
+                        Зменшує розмір аудіо за рахунок перекодування у формат MP3.
+                        {ffmpegAvailable === false && " (потребує FFmpeg)"}
+                      </span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="convertWavToMp3"
+                        className="toggle-checkbox"
+                        checked={convertWavToMp3}
+                        disabled={ffmpegAvailable === false}
+                        onChange={(e) => setConvertWavToMp3(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="convertWavToMp3"
+                        className={`toggle-label${ffmpegAvailable === false ? " toggle-disabled" : ""}`}
+                      ></label>
+                    </div>
+                  </label>
+
+                  {convertWavToMp3 && ffmpegAvailable !== false && (
+                    <div className="setting-control-column" style={{ marginTop: "8px" }}>
+                      <div className="setting-info">
+                        <div className="slider-header-row">
+                          <span className="setting-name">Бітрейт MP3 (kbps)</span>
+                          <span className="slider-badge">{mp3Bitrate}</span>
+                        </div>
+                        <span className="setting-desc">
+                          Більше значення = краща якість і більший розмір файлу.
+                        </span>
+                      </div>
+                      <div className="slider-container">
+                        <input
+                          type="range"
+                          min="64"
+                          max="320"
+                          step="32"
+                          value={mp3Bitrate}
+                          onChange={(e) => setMp3Bitrate(Number(e.target.value))}
+                          className="quality-slider"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
             </div>

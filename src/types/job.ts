@@ -34,4 +34,7 @@ export interface JobOptions {
   maxHeight: number;
   convertVideo: boolean;
   videoCrf: number;
+  convertWavToMp3: boolean;
+  mp3Bitrate: number;
+  optimizeMp4: boolean;
 }

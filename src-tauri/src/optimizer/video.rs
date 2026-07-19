@@ -12,53 +12,17 @@ pub fn ffmpeg_available() -> bool {
     find_ffmpeg().is_some()
 }
 
-/// Converts a video file (VOB/AVI) to MP4 using libx264 + AAC.
-///
-/// - `crf`: Constant Rate Factor (0–51). Lower = better quality. Default: 23.
-/// - `active_job`: shared job state — `.cancelled` flag is polled every 200ms.
-///   If set, the process is killed and the incomplete output file is removed.
-pub fn convert_video(
-    input_path: &Path,
+// ---------------------------------------------------------------------------
+// Internal helper — polls a running child process and respects cancellation.
+// ---------------------------------------------------------------------------
+fn wait_for_ffmpeg(
+    mut child: std::process::Child,
     output_path: &Path,
-    crf: u8,
-    active_job: Arc<crate::ActiveJob>,
+    active_job: &Arc<crate::ActiveJob>,
 ) -> Result<(), String> {
-    let ffmpeg = find_ffmpeg().ok_or_else(|| {
-        "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
-    })?;
-
-    let crf_str = crf.to_string();
-
-    let mut child = std::process::Command::new(&ffmpeg)
-        .args([
-            "-y", // overwrite output without asking
-            "-i",
-            input_path.to_str().unwrap_or_default(),
-            "-c:v",
-            "libx264",
-            "-crf",
-            &crf_str,
-            "-preset",
-            "medium",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart", // streaming-friendly MP4
-            output_path.to_str().unwrap_or_default(),
-        ])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(|e| format!("Не вдалося запустити FFmpeg: {e}"))?;
-
-    // Poll for completion, checking cancellation flag every 200ms
     loop {
         if active_job.cancelled.load(Ordering::Relaxed) {
             let _ = child.kill();
-            // Remove incomplete output file
             let _ = std::fs::remove_file(output_path);
             return Err("Скасовано".to_string());
         }
@@ -75,7 +39,6 @@ pub fn convert_video(
                 }
             }
             Ok(None) => {
-                // Still running, wait a bit
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
             Err(e) => {
@@ -83,4 +46,118 @@ pub fn convert_video(
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Shared FFmpeg spawn helper.
+// ---------------------------------------------------------------------------
+fn spawn_ffmpeg<'a>(
+    ffmpeg: &std::path::Path,
+    args: impl IntoIterator<Item = &'a str>,
+) -> Result<std::process::Child, String> {
+    std::process::Command::new(ffmpeg)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Не вдалося запустити FFmpeg: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Public converters
+// ---------------------------------------------------------------------------
+
+/// Converts VOB/AVI → MP4 (libx264 + AAC, streaming-ready).
+pub fn convert_video(
+    input_path: &Path,
+    output_path: &Path,
+    crf: u8,
+    active_job: Arc<crate::ActiveJob>,
+) -> Result<(), String> {
+    let ffmpeg = find_ffmpeg().ok_or_else(|| {
+        "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
+    })?;
+
+    let crf_str = crf.to_string();
+    let input = input_path.to_str().unwrap_or_default();
+    let output = output_path.to_str().unwrap_or_default();
+
+    let child = spawn_ffmpeg(
+        &ffmpeg,
+        [
+            "-y", "-i", input,
+            "-c:v", "libx264",
+            "-crf", &crf_str,
+            "-preset", "medium",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-movflags", "+faststart",
+            output,
+        ],
+    )?;
+
+    wait_for_ffmpeg(child, output_path, &active_job)
+}
+
+/// Re-encodes an existing MP4 to a smaller size using YouTube-like settings:
+/// higher CRF (28) + slow preset + AAC 128k + faststart.
+pub fn optimize_mp4(
+    input_path: &Path,
+    output_path: &Path,
+    crf: u8,
+    active_job: Arc<crate::ActiveJob>,
+) -> Result<(), String> {
+    let ffmpeg = find_ffmpeg().ok_or_else(|| {
+        "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
+    })?;
+
+    let crf_str = crf.to_string();
+    let input = input_path.to_str().unwrap_or_default();
+    let output = output_path.to_str().unwrap_or_default();
+
+    let child = spawn_ffmpeg(
+        &ffmpeg,
+        [
+            "-y", "-i", input,
+            "-c:v", "libx264",
+            "-crf", &crf_str,
+            "-preset", "slow",   // slower = better compression ratio
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-movflags", "+faststart",
+            output,
+        ],
+    )?;
+
+    wait_for_ffmpeg(child, output_path, &active_job)
+}
+
+/// Converts WAV → MP3 using libmp3lame at the given bitrate (kbps).
+pub fn convert_wav_to_mp3(
+    input_path: &Path,
+    output_path: &Path,
+    bitrate_kbps: u32,
+    active_job: Arc<crate::ActiveJob>,
+) -> Result<(), String> {
+    let ffmpeg = find_ffmpeg().ok_or_else(|| {
+        "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
+    })?;
+
+    let bitrate_str = format!("{}k", bitrate_kbps);
+    let input = input_path.to_str().unwrap_or_default();
+    let output = output_path.to_str().unwrap_or_default();
+
+    let child = spawn_ffmpeg(
+        &ffmpeg,
+        [
+            "-y", "-i", input,
+            "-c:a", "libmp3lame",
+            "-b:a", &bitrate_str,
+            "-id3v2_version", "3",   // widely-compatible ID3 tags
+            output,
+        ],
+    )?;
+
+    wait_for_ffmpeg(child, output_path, &active_job)
 }
