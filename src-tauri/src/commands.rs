@@ -48,6 +48,11 @@ pub async fn select_folder() -> Result<Option<FolderSelection>, String> {
 }
 
 #[tauri::command]
+pub fn check_ffmpeg() -> bool {
+    crate::optimizer::video::ffmpeg_available()
+}
+
+#[tauri::command]
 pub fn start_optimization(
     input_path: String,
     output_path: String,

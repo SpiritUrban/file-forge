@@ -31,12 +31,14 @@ impl ActiveJob {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FileType {
     Jpeg,
     Png,
     Webp,
     Svg,
+    VideoVob,
+    VideoAvi,
     Other,
 }
 
@@ -51,6 +53,10 @@ pub fn classify_file(path: &Path) -> FileType {
             FileType::Webp
         } else if ext_lower == "svg" {
             FileType::Svg
+        } else if ext_lower == "vob" {
+            FileType::VideoVob
+        } else if ext_lower == "avi" {
+            FileType::VideoAvi
         } else {
             FileType::Other
         }
@@ -303,6 +309,60 @@ pub fn run_optimization_job(
                     )
                 }
             }
+            FileType::VideoVob | FileType::VideoAvi => {
+                if options.convert_video {
+                    // Output is always .mp4 regardless of source extension
+                    let mp4_out = out_file_path.with_extension("mp4");
+                    if let Some(parent) = mp4_out.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let result = crate::optimizer::video::convert_video(
+                        &in_file_path,
+                        &mp4_out,
+                        options.video_crf,
+                        active_job.clone(),
+                    );
+                    match result {
+                        Ok(_) => {
+                            let out_size = fs::metadata(&mp4_out).map(|m| m.len()).unwrap_or(0);
+                            let mut progress = active_job.progress.lock().unwrap();
+                            progress.processed_files += 1;
+                            progress.optimized_files += 1;
+                            progress.output_bytes += out_size;
+                        }
+                        Err(ref e) if e == "Скасовано" => {
+                            return;
+                        }
+                        Err(_) => {
+                            // Conversion failed — copy original as fallback
+                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.copied_files += 1;
+                                progress.output_bytes += orig_size;
+                            } else {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.failed_files += 1;
+                            }
+                        }
+                    }
+                } else {
+                    // Video conversion disabled — copy as-is
+                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.copied_files += 1;
+                        progress.output_bytes += orig_size;
+                    } else {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.failed_files += 1;
+                    }
+                }
+                let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                return;
+            }
         };
 
         if active_job.cancelled.load(Ordering::Relaxed) {
@@ -490,6 +550,22 @@ mod tests {
         assert_eq!(classify_file(Path::new("vector.svg")), FileType::Svg);
         assert_eq!(classify_file(Path::new("video.mp4")), FileType::Other);
         assert_eq!(classify_file(Path::new("no_extension")), FileType::Other);
+    }
+
+    #[test]
+    fn test_classify_video() {
+        assert_eq!(classify_file(Path::new("movie.vob")), FileType::VideoVob);
+        assert_eq!(classify_file(Path::new("movie.VOB")), FileType::VideoVob);
+        assert_eq!(classify_file(Path::new("clip.avi")), FileType::VideoAvi);
+        assert_eq!(classify_file(Path::new("clip.AVI")), FileType::VideoAvi);
+        // mp4 is NOT converted by us (it's already compact)
+        assert_eq!(classify_file(Path::new("already.mp4")), FileType::Other);
+    }
+
+    #[test]
+    fn test_ffmpeg_check_does_not_panic() {
+        // Should return a bool without panicking regardless of whether ffmpeg is installed
+        let _ = crate::optimizer::video::ffmpeg_available();
     }
 
     #[test]

@@ -16,6 +16,7 @@ pub fn run() {
         .manage(active_job)
         .invoke_handler(tauri::generate_handler![
             commands::select_folder,
+            commands::check_ffmpeg,
             commands::start_optimization,
             commands::get_job_progress,
             commands::open_folder,

@@ -32,4 +32,6 @@ export interface JobOptions {
   resizeImages: boolean;
   maxWidth: number;
   maxHeight: number;
+  convertVideo: boolean;
+  videoCrf: number;
 }

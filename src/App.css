@@ -953,5 +953,58 @@ body.dark .logo-text {
   -webkit-background-clip: text;
 }
 
+/* FFmpeg Warning Banner */
+.ffmpeg-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+  padding: 14px 16px;
+  animation: slideDown 0.2s ease-out;
+}
 
+.ffmpeg-banner-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
 
+.ffmpeg-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ffmpeg-banner-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.ffmpeg-banner-desc {
+  font-size: 0.78rem;
+  color: #b45309;
+  line-height: 1.4;
+}
+
+/* Disabled toggle state */
+.toggle-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Dark mode: ffmpeg banner */
+body.dark .ffmpeg-banner {
+  background: #1c1207;
+  border-color: #78350f;
+}
+
+body.dark .ffmpeg-banner-title {
+  color: #fbbf24;
+}
+
+body.dark .ffmpeg-banner-desc {
+  color: #d97706;
+}

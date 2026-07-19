@@ -53,4 +53,6 @@ pub struct JobOptions {
     pub resize_images: bool,
     pub max_width: u32,
     pub max_height: u32,
+    pub convert_video: bool,
+    pub video_crf: u8,
 }

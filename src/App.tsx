@@ -15,6 +15,9 @@ function App() {
   const [resizeImages, setResizeImages] = useState<boolean>(false);
   const [maxWidth, setMaxWidth] = useState<number>(1920);
   const [maxHeight, setMaxHeight] = useState<number>(1080);
+  const [convertVideo, setConvertVideo] = useState<boolean>(false);
+  const [videoCrf, setVideoCrf] = useState<number>(23);
+  const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(
     (localStorage.getItem("theme") as any) || "light"
   );
@@ -78,6 +81,11 @@ function App() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  // Check FFmpeg availability on mount
+  useEffect(() => {
+    invoke<boolean>("check_ffmpeg").then(setFfmpegAvailable).catch(() => setFfmpegAvailable(false));
+  }, []);
+
   const handleSelectFolder = async () => {
     try {
       setError(null);
@@ -105,7 +113,9 @@ function App() {
           jpegQuality,
           resizeImages,
           maxWidth,
-          maxHeight
+          maxHeight,
+          convertVideo,
+          videoCrf,
         }
       });
     } catch (err: any) {
@@ -350,6 +360,70 @@ function App() {
                           value={maxHeight}
                           onChange={(e) => setMaxHeight(Math.max(10, Number(e.target.value)))}
                           className="number-input"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="setting-divider"></div>
+
+                {/* Video Conversion Section */}
+                <div className="setting-control-column">
+                  {ffmpegAvailable === false && (
+                    <div className="ffmpeg-banner">
+                      <span className="ffmpeg-banner-icon">⚠️</span>
+                      <div className="ffmpeg-banner-text">
+                        <span className="ffmpeg-banner-title">FFmpeg не знайдено</span>
+                        <span className="ffmpeg-banner-desc">
+                          Встановіть FFmpeg та перезапустіть застосунок, щоб увімкнути конвертацію відео.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <label className="setting-control">
+                    <div className="setting-info">
+                      <span className="setting-name">Конвертувати VOB/AVI в MP4</span>
+                      <span className="setting-desc">
+                        Перекодує відеофайли у компактний MP4 (H.264 + AAC) через FFmpeg.
+                        {ffmpegAvailable === false && " (потребує FFmpeg)"}
+                      </span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="convertVideo"
+                        className="toggle-checkbox"
+                        checked={convertVideo}
+                        disabled={ffmpegAvailable === false}
+                        onChange={(e) => setConvertVideo(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="convertVideo"
+                        className={`toggle-label${ffmpegAvailable === false ? " toggle-disabled" : ""}`}
+                      ></label>
+                    </div>
+                  </label>
+
+                  {convertVideo && ffmpegAvailable !== false && (
+                    <div className="setting-control-column" style={{ marginTop: "8px" }}>
+                      <div className="setting-info">
+                        <div className="slider-header-row">
+                          <span className="setting-name">Якість відео (CRF)</span>
+                          <span className="slider-badge">{videoCrf}</span>
+                        </div>
+                        <span className="setting-desc">
+                          0 = максимальна якість, 51 = мінімальна. Рекомендовано: 18–28.
+                        </span>
+                      </div>
+                      <div className="slider-container">
+                        <input
+                          type="range"
+                          min="0"
+                          max="51"
+                          value={videoCrf}
+                          onChange={(e) => setVideoCrf(Number(e.target.value))}
+                          className="quality-slider"
                         />
                       </div>
                     </div>

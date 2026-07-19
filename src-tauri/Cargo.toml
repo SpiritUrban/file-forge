@@ -28,6 +28,7 @@ oxipng = "9.1"
 rfd = "0.14"
 walkdir = "2.5"
 rayon = "1.10"
+which = "7"
 
 
 
