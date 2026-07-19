@@ -18,8 +18,11 @@ function App() {
   const [convertVideo, setConvertVideo] = useState<boolean>(false);
   const [videoCrf, setVideoCrf] = useState<number>(23);
   const [optimizeMp4, setOptimizeMp4] = useState<boolean>(false);
+  const [useH265, setUseH265] = useState<boolean>(false);
+  const [extractAudio, setExtractAudio] = useState<boolean>(false);
   const [convertWavToMp3, setConvertWavToMp3] = useState<boolean>(false);
   const [mp3Bitrate, setMp3Bitrate] = useState<number>(128);
+  const [convertGifToMp4, setConvertGifToMp4] = useState<boolean>(false);
   const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(
     (localStorage.getItem("theme") as any) || "light"
@@ -119,9 +122,12 @@ function App() {
           maxHeight,
           convertVideo,
           videoCrf,
+          useH265,
+          extractAudio,
           convertWavToMp3,
           mp3Bitrate,
           optimizeMp4,
+          convertGifToMp4,
         }
       });
     } catch (err: any) {
@@ -461,6 +467,54 @@ function App() {
 
                   <label className="setting-control" style={{ marginTop: "16px" }}>
                     <div className="setting-info">
+                      <span className="setting-name">Ультра-стиснення (H.265 / HEVC)</span>
+                      <span className="setting-desc">
+                        Дає вдвічі менший розмір файлу ніж H.264 при тій самій якості. Займає більше часу на кодування.
+                        {ffmpegAvailable === false && " (потребує FFmpeg)"}
+                      </span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="useH265"
+                        className="toggle-checkbox"
+                        checked={useH265}
+                        disabled={ffmpegAvailable === false || (!convertVideo && !optimizeMp4)}
+                        onChange={(e) => setUseH265(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="useH265"
+                        className={`toggle-label${ffmpegAvailable === false || (!convertVideo && !optimizeMp4) ? " toggle-disabled" : ""}`}
+                      ></label>
+                    </div>
+                  </label>
+
+                  <label className="setting-control" style={{ marginTop: "16px" }}>
+                    <div className="setting-info">
+                      <span className="setting-name">Витягнути аудіо (MP3) з відео</span>
+                      <span className="setting-desc">
+                        Замість обробки відео буде витягнуто тільки звук і збережено як MP3 файл.
+                        {ffmpegAvailable === false && " (потребує FFmpeg)"}
+                      </span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="extractAudio"
+                        className="toggle-checkbox"
+                        checked={extractAudio}
+                        disabled={ffmpegAvailable === false}
+                        onChange={(e) => setExtractAudio(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="extractAudio"
+                        className={`toggle-label${ffmpegAvailable === false ? " toggle-disabled" : ""}`}
+                      ></label>
+                    </div>
+                  </label>
+
+                  <label className="setting-control" style={{ marginTop: "16px" }}>
+                    <div className="setting-info">
                       <span className="setting-name">Конвертувати WAV в MP3</span>
                       <span className="setting-desc">
                         Зменшує розмір аудіо за рахунок перекодування у формат MP3.
@@ -508,6 +562,29 @@ function App() {
                     </div>
                   )}
 
+                  <label className="setting-control" style={{ marginTop: "16px" }}>
+                    <div className="setting-info">
+                      <span className="setting-name">Конвертувати GIF у MP4</span>
+                      <span className="setting-desc">
+                        Зменшує розмір анімацій у 5-10 разів за рахунок конвертації у тихе відео.
+                        {ffmpegAvailable === false && " (потребує FFmpeg)"}
+                      </span>
+                    </div>
+                    <div className="toggle-container">
+                      <input
+                        type="checkbox"
+                        id="convertGifToMp4"
+                        className="toggle-checkbox"
+                        checked={convertGifToMp4}
+                        disabled={ffmpegAvailable === false}
+                        onChange={(e) => setConvertGifToMp4(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="convertGifToMp4"
+                        className={`toggle-label${ffmpegAvailable === false ? " toggle-disabled" : ""}`}
+                      ></label>
+                    </div>
+                  </label>
                 </div>
               </div>
             </div>

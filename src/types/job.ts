@@ -34,7 +34,10 @@ export interface JobOptions {
   maxHeight: number;
   convertVideo: boolean;
   videoCrf: number;
+  useH265: boolean;
+  extractAudio: boolean;
   convertWavToMp3: boolean;
   mp3Bitrate: number;
   optimizeMp4: boolean;
+  convertGifToMp4: boolean;
 }

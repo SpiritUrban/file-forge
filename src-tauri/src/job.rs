@@ -39,8 +39,19 @@ pub enum FileType {
     Svg,
     VideoVob,
     VideoAvi,
+    VideoMkv,
+    VideoMov,
+    VideoWmv,
+    VideoFlv,
+    VideoWebm,
     VideoMp4,
     AudioWav,
+    AudioFlac,
+    AudioOgg,
+    AudioM4a,
+    ImageBmp,
+    ImageTiff,
+    ImageGif,
     Other,
 }
 
@@ -59,10 +70,32 @@ pub fn classify_file(path: &Path) -> FileType {
             FileType::VideoVob
         } else if ext_lower == "avi" {
             FileType::VideoAvi
+        } else if ext_lower == "mkv" {
+            FileType::VideoMkv
+        } else if ext_lower == "mov" {
+            FileType::VideoMov
+        } else if ext_lower == "wmv" {
+            FileType::VideoWmv
+        } else if ext_lower == "flv" {
+            FileType::VideoFlv
+        } else if ext_lower == "webm" {
+            FileType::VideoWebm
         } else if ext_lower == "mp4" {
             FileType::VideoMp4
         } else if ext_lower == "wav" {
             FileType::AudioWav
+        } else if ext_lower == "flac" {
+            FileType::AudioFlac
+        } else if ext_lower == "ogg" {
+            FileType::AudioOgg
+        } else if ext_lower == "m4a" {
+            FileType::AudioM4a
+        } else if ext_lower == "bmp" {
+            FileType::ImageBmp
+        } else if ext_lower == "tiff" || ext_lower == "tif" {
+            FileType::ImageTiff
+        } else if ext_lower == "gif" {
+            FileType::ImageGif
         } else {
             FileType::Other
         }
@@ -240,7 +273,7 @@ pub fn run_optimization_job(
                     )
                 }
             }
-            FileType::Png => {
+            FileType::Png | FileType::ImageBmp | FileType::ImageTiff => {
                 if options.convert_png_to_webp {
                     let temp = out_file_path.with_extension("webp.fileforge.tmp");
                     (
@@ -315,7 +348,39 @@ pub fn run_optimization_job(
                     )
                 }
             }
-            FileType::VideoVob | FileType::VideoAvi => {
+            FileType::VideoVob | FileType::VideoAvi | FileType::VideoMkv | FileType::VideoMov | FileType::VideoWmv | FileType::VideoFlv | FileType::VideoWebm => {
+                if options.extract_audio {
+                    let mp3_out = out_file_path.with_extension("mp3");
+                    if let Some(parent) = mp3_out.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let result = crate::optimizer::video::extract_audio_to_mp3(
+                        &in_file_path,
+                        &mp3_out,
+                        options.mp3_bitrate,
+                        active_job.clone(),
+                    );
+                    match result {
+                        Ok(_) => {
+                            let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
+                            let mut progress = active_job.progress.lock().unwrap();
+                            progress.processed_files += 1;
+                            progress.optimized_files += 1;
+                            progress.output_bytes += out_size;
+                        }
+                        Err(ref e) if e == "Скасовано" => return,
+                        Err(_) => {
+                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.copied_files += 1;
+                                progress.output_bytes += orig_size;
+                            }
+                        }
+                    }
+                    let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                    return;
+                }
                 if options.convert_video {
                     // Output is always .mp4 regardless of source extension
                     let mp4_out = out_file_path.with_extension("mp4");
@@ -326,6 +391,7 @@ pub fn run_optimization_job(
                         &in_file_path,
                         &mp4_out,
                         options.video_crf,
+                        options.use_h265,
                         active_job.clone(),
                     );
                     match result {
@@ -370,12 +436,46 @@ pub fn run_optimization_job(
                 return;
             }
             FileType::VideoMp4 => {
+                if options.extract_audio {
+                    let mp3_out = out_file_path.with_extension("mp3");
+                    if let Some(parent) = mp3_out.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let result = crate::optimizer::video::extract_audio_to_mp3(
+                        &in_file_path,
+                        &mp3_out,
+                        options.mp3_bitrate,
+                        active_job.clone(),
+                    );
+                    match result {
+                        Ok(_) => {
+                            let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
+                            let mut progress = active_job.progress.lock().unwrap();
+                            progress.processed_files += 1;
+                            progress.optimized_files += 1;
+                            progress.output_bytes += out_size;
+                        }
+                        Err(ref e) if e == "Скасовано" => return,
+                        Err(_) => {
+                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.copied_files += 1;
+                                progress.output_bytes += orig_size;
+                            }
+                        }
+                    }
+                    let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                    return;
+                }
+
                 if options.optimize_mp4 {
                     let temp = out_file_path.with_extension("mp4.fileforge.tmp");
                     let result = crate::optimizer::video::optimize_mp4(
                         &in_file_path,
                         &temp,
                         options.video_crf,
+                        options.use_h265,
                         active_job.clone(),
                     );
                     match result {
@@ -427,7 +527,7 @@ pub fn run_optimization_job(
                 let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
                 return;
             }
-            FileType::AudioWav => {
+            FileType::AudioWav | FileType::AudioFlac | FileType::AudioOgg | FileType::AudioM4a => {
                 if options.convert_wav_to_mp3 {
                     let mp3_out = out_file_path.with_extension("mp3");
                     if let Some(parent) = mp3_out.parent() {
@@ -442,6 +542,52 @@ pub fn run_optimization_job(
                     match result {
                         Ok(_) => {
                             let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
+                            let mut progress = active_job.progress.lock().unwrap();
+                            progress.processed_files += 1;
+                            progress.optimized_files += 1;
+                            progress.output_bytes += out_size;
+                        }
+                        Err(ref e) if e == "Скасовано" => {
+                            return;
+                        }
+                        Err(_) => {
+                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                let mut progress = active_job.progress.lock().unwrap();
+                                progress.processed_files += 1;
+                                progress.copied_files += 1;
+                                progress.output_bytes += orig_size;
+                            }
+                        }
+                    }
+                } else {
+                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.copied_files += 1;
+                        progress.output_bytes += orig_size;
+                    } else {
+                        let mut progress = active_job.progress.lock().unwrap();
+                        progress.processed_files += 1;
+                        progress.failed_files += 1;
+                    }
+                }
+                let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                return;
+            }
+            FileType::ImageGif => {
+                if options.convert_gif_to_mp4 {
+                    let mp4_out = out_file_path.with_extension("mp4");
+                    if let Some(parent) = mp4_out.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let result = crate::optimizer::video::convert_gif_to_mp4(
+                        &in_file_path,
+                        &mp4_out,
+                        active_job.clone(),
+                    );
+                    match result {
+                        Ok(_) => {
+                            let out_size = fs::metadata(&mp4_out).map(|m| m.len()).unwrap_or(0);
                             let mut progress = active_job.progress.lock().unwrap();
                             progress.processed_files += 1;
                             progress.optimized_files += 1;
@@ -661,6 +807,13 @@ mod tests {
         assert_eq!(classify_file(Path::new("vector.svg")), FileType::Svg);
         assert_eq!(classify_file(Path::new("video.mp4")), FileType::VideoMp4);
         assert_eq!(classify_file(Path::new("audio.wav")), FileType::AudioWav);
+        assert_eq!(classify_file(Path::new("audio.flac")), FileType::AudioFlac);
+        assert_eq!(classify_file(Path::new("music.ogg")), FileType::AudioOgg);
+        assert_eq!(classify_file(Path::new("podcast.m4a")), FileType::AudioM4a);
+        assert_eq!(classify_file(Path::new("photo.bmp")), FileType::ImageBmp);
+        assert_eq!(classify_file(Path::new("scan.tiff")), FileType::ImageTiff);
+        assert_eq!(classify_file(Path::new("scan.tif")), FileType::ImageTiff);
+        assert_eq!(classify_file(Path::new("anim.gif")), FileType::ImageGif);
         assert_eq!(classify_file(Path::new("no_extension")), FileType::Other);
     }
 
@@ -671,6 +824,11 @@ mod tests {
         assert_eq!(classify_file(Path::new("clip.avi")), FileType::VideoAvi);
         assert_eq!(classify_file(Path::new("clip.AVI")), FileType::VideoAvi);
         assert_eq!(classify_file(Path::new("already.mp4")), FileType::VideoMp4);
+        assert_eq!(classify_file(Path::new("film.mkv")), FileType::VideoMkv);
+        assert_eq!(classify_file(Path::new("film.mov")), FileType::VideoMov);
+        assert_eq!(classify_file(Path::new("film.wmv")), FileType::VideoWmv);
+        assert_eq!(classify_file(Path::new("film.flv")), FileType::VideoFlv);
+        assert_eq!(classify_file(Path::new("film.webm")), FileType::VideoWebm);
     }
 
     #[test]

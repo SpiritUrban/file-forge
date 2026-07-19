@@ -97,6 +97,7 @@ pub fn convert_video(
     input_path: &Path,
     output_path: &Path,
     crf: u8,
+    use_h265: bool,
     active_job: Arc<crate::ActiveJob>,
 ) -> Result<(), String> {
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
@@ -111,7 +112,7 @@ pub fn convert_video(
         &ffmpeg,
         [
             "-y", "-i", input,
-            "-c:v", "libx264",
+            "-c:v", if use_h265 { "libx265" } else { "libx264" },
             "-crf", &crf_str,
             "-preset", "medium",
             "-c:a", "aac",
@@ -130,6 +131,7 @@ pub fn optimize_mp4(
     input_path: &Path,
     output_path: &Path,
     crf: u8,
+    use_h265: bool,
     active_job: Arc<crate::ActiveJob>,
 ) -> Result<(), String> {
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
@@ -144,7 +146,7 @@ pub fn optimize_mp4(
         &ffmpeg,
         [
             "-y", "-i", input,
-            "-c:v", "libx264",
+            "-c:v", if use_h265 { "libx265" } else { "libx264" },
             "-crf", &crf_str,
             "-preset", "slow",   // slower = better compression ratio
             "-c:a", "aac",
@@ -179,6 +181,66 @@ pub fn convert_wav_to_mp3(
             "-c:a", "libmp3lame",
             "-b:a", &bitrate_str,
             "-id3v2_version", "3",   // widely-compatible ID3 tags
+            output,
+        ],
+    )?;
+
+    wait_for_ffmpeg(child, output_path, &active_job)
+}
+
+/// Extracts audio from a video file and saves it as MP3.
+pub fn extract_audio_to_mp3(
+    input_path: &Path,
+    output_path: &Path,
+    bitrate_kbps: u32,
+    active_job: Arc<crate::ActiveJob>,
+) -> Result<(), String> {
+    let ffmpeg = find_ffmpeg().ok_or_else(|| {
+        "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
+    })?;
+
+    let bitrate_str = format!("{}k", bitrate_kbps);
+    let input = input_path.to_str().unwrap_or_default();
+    let output = output_path.to_str().unwrap_or_default();
+
+    let child = spawn_ffmpeg(
+        &ffmpeg,
+        [
+            "-y", "-i", input,
+            "-vn", // skip video
+            "-c:a", "libmp3lame",
+            "-b:a", &bitrate_str,
+            "-id3v2_version", "3",
+            output,
+        ],
+    )?;
+
+    wait_for_ffmpeg(child, output_path, &active_job)
+}
+
+/// Converts an animated GIF to a silent MP4.
+pub fn convert_gif_to_mp4(
+    input_path: &Path,
+    output_path: &Path,
+    active_job: Arc<crate::ActiveJob>,
+) -> Result<(), String> {
+    let ffmpeg = find_ffmpeg().ok_or_else(|| {
+        "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
+    })?;
+
+    let input = input_path.to_str().unwrap_or_default();
+    let output = output_path.to_str().unwrap_or_default();
+
+    let child = spawn_ffmpeg(
+        &ffmpeg,
+        [
+            "-y", "-i", input,
+            "-c:v", "libx264",
+            "-crf", "23",
+            "-preset", "medium",
+            "-pix_fmt", "yuv420p", // essential for wide compatibility of GIF->MP4
+            "-an", // no audio in GIFs
+            "-movflags", "+faststart",
             output,
         ],
     )?;

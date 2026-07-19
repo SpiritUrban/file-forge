@@ -55,7 +55,10 @@ pub struct JobOptions {
     pub max_height: u32,
     pub convert_video: bool,
     pub video_crf: u8,
+    pub use_h265: bool,
+    pub extract_audio: bool,
     pub convert_wav_to_mp3: bool,
     pub mp3_bitrate: u32,
     pub optimize_mp4: bool,
+    pub convert_gif_to_mp4: bool,
 }
