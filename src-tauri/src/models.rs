@@ -25,6 +25,7 @@ pub struct JobProgress {
     pub failed_files: usize,
     pub original_bytes: u64,
     pub output_bytes: u64,
+    pub current_file_progress: Option<f32>,
 }
 
 impl Default for JobProgress {
@@ -41,6 +42,7 @@ impl Default for JobProgress {
             failed_files: 0,
             original_bytes: 0,
             output_bytes: 0,
+            current_file_progress: None,
         }
     }
 }

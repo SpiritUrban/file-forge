@@ -658,6 +658,21 @@ function App() {
                 <span className="current-file-name" title={progress.currentFile}>
                   {progress.currentFile}
                 </span>
+                <div className="file-progress-container">
+                  {progress.currentFileProgress != null ? (
+                    <div 
+                      className="file-progress-bar determinate" 
+                      style={{ width: `${progress.currentFileProgress}%` }}
+                    ></div>
+                  ) : (
+                    <div className="file-progress-bar indeterminate"></div>
+                  )}
+                </div>
+                {progress.currentFileProgress != null && (
+                  <div className="file-progress-text">
+                    {Math.round(progress.currentFileProgress)}%
+                  </div>
+                )}
               </div>
             )}
 

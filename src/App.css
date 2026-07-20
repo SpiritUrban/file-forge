@@ -1008,3 +1008,47 @@ body.dark .ffmpeg-banner-title {
 body.dark .ffmpeg-banner-desc {
   color: #d97706;
 }
+
+.file-progress-container {
+  width: 100%;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.file-progress-bar {
+  width: 30%;
+  height: 100%;
+  background: var(--primary-gradient);
+  border-radius: 2px;
+  position: absolute;
+  animation: file-indeterminate 1.5s infinite ease-in-out;
+}
+
+.dark .file-progress-container {
+  background: #334155;
+}
+
+@keyframes file-indeterminate {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+
+.file-progress-bar.determinate {
+  animation: none;
+  transition: width 0.3s ease;
+  left: 0;
+}
+
+.file-progress-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 4px;
+  font-weight: 600;
+}
+

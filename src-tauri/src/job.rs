@@ -264,16 +264,17 @@ pub fn run_optimization_job(
             let _ = fs::create_dir_all(parent);
         }
 
-        // Set current file path
+        // Update current file in progress
         {
             let mut progress = active_job.progress.lock().unwrap();
-            progress.current_file = Some(rel_path.to_string_lossy().into_owned());
+            progress.current_file = Some(in_file_path.file_name().unwrap_or_default().to_string_lossy().to_string());
+            progress.current_file_progress = None;
         }
         let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
 
         let optimize_result = match file_type {
             FileType::Other => {
-                if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                     let mut progress = active_job.progress.lock().unwrap();
                     progress.processed_files += 1;
                     progress.copied_files += 1;
@@ -384,26 +385,33 @@ pub fn run_optimization_job(
             FileType::VideoVob | FileType::VideoAvi | FileType::VideoMkv | FileType::VideoMov | FileType::VideoWmv | FileType::VideoFlv | FileType::VideoWebm => {
                 if options.extract_audio {
                     let mp3_out = out_file_path.with_extension("mp3");
+                    let mp3_tmp = out_file_path.with_extension("mp3.fileforge.tmp");
                     if let Some(parent) = mp3_out.parent() {
                         let _ = fs::create_dir_all(parent);
                     }
                     let result = crate::optimizer::video::extract_audio_to_mp3(
                         &in_file_path,
-                        &mp3_out,
+                        &mp3_tmp,
                         options.mp3_bitrate,
-                        active_job.clone(),
-                    );
+                        active_job.clone(), &app,
+                        );
                     match result {
                         Ok(_) => {
+                            let _ = fs::rename(&mp3_tmp, &mp3_out);
                             let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
                             let mut progress = active_job.progress.lock().unwrap();
                             progress.processed_files += 1;
                             progress.optimized_files += 1;
                             progress.output_bytes += out_size;
                         }
-                        Err(ref e) if e == "Скасовано" => return,
+                        Err(ref e) if e == "Скасовано" => {
+                            let _ = fs::remove_file(&mp3_tmp);
+                            let _ = fs::remove_file(&mp3_tmp);
+                            return;
+                        }
                         Err(_) => {
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                            let _ = fs::remove_file(&mp3_tmp);
+                            if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                 let mut progress = active_job.progress.lock().unwrap();
                                 progress.processed_files += 1;
                                 progress.copied_files += 1;
@@ -417,18 +425,20 @@ pub fn run_optimization_job(
                 if options.convert_video {
                     // Output is always .mp4 regardless of source extension
                     let mp4_out = out_file_path.with_extension("mp4");
+                    let mp4_tmp = out_file_path.with_extension("mp4.fileforge.tmp");
                     if let Some(parent) = mp4_out.parent() {
                         let _ = fs::create_dir_all(parent);
                     }
                     let result = crate::optimizer::video::convert_video(
                         &in_file_path,
-                        &mp4_out,
+                        &mp4_tmp,
                         options.video_crf,
                         options.use_h265,
-                        active_job.clone(),
-                    );
+                        active_job.clone(), &app,
+                        );
                     match result {
                         Ok(_) => {
+                            let _ = fs::rename(&mp4_tmp, &mp4_out);
                             let out_size = fs::metadata(&mp4_out).map(|m| m.len()).unwrap_or(0);
                             let mut progress = active_job.progress.lock().unwrap();
                             progress.processed_files += 1;
@@ -436,11 +446,13 @@ pub fn run_optimization_job(
                             progress.output_bytes += out_size;
                         }
                         Err(ref e) if e == "Скасовано" => {
+                            let _ = fs::remove_file(&mp4_tmp);
                             return;
                         }
                         Err(_) => {
+                            let _ = fs::remove_file(&mp4_tmp);
                             // Conversion failed — copy original as fallback
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                            if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                 let mut progress = active_job.progress.lock().unwrap();
                                 progress.processed_files += 1;
                                 progress.copied_files += 1;
@@ -454,7 +466,7 @@ pub fn run_optimization_job(
                     }
                 } else {
                     // Video conversion disabled — copy as-is
-                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                    if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                         let mut progress = active_job.progress.lock().unwrap();
                         progress.processed_files += 1;
                         progress.copied_files += 1;
@@ -471,26 +483,33 @@ pub fn run_optimization_job(
             FileType::VideoMp4 => {
                 if options.extract_audio {
                     let mp3_out = out_file_path.with_extension("mp3");
+                    let mp3_tmp = out_file_path.with_extension("mp3.fileforge.tmp");
                     if let Some(parent) = mp3_out.parent() {
                         let _ = fs::create_dir_all(parent);
                     }
                     let result = crate::optimizer::video::extract_audio_to_mp3(
                         &in_file_path,
-                        &mp3_out,
+                        &mp3_tmp,
                         options.mp3_bitrate,
-                        active_job.clone(),
-                    );
+                        active_job.clone(), &app,
+                        );
                     match result {
                         Ok(_) => {
+                            let _ = fs::rename(&mp3_tmp, &mp3_out);
                             let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
                             let mut progress = active_job.progress.lock().unwrap();
                             progress.processed_files += 1;
                             progress.optimized_files += 1;
                             progress.output_bytes += out_size;
                         }
-                        Err(ref e) if e == "Скасовано" => return,
+                        Err(ref e) if e == "Скасовано" => {
+                            let _ = fs::remove_file(&mp3_tmp);
+                            let _ = fs::remove_file(&mp3_tmp);
+                            return;
+                        }
                         Err(_) => {
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                            let _ = fs::remove_file(&mp3_tmp);
+                            if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                 let mut progress = active_job.progress.lock().unwrap();
                                 progress.processed_files += 1;
                                 progress.copied_files += 1;
@@ -509,8 +528,8 @@ pub fn run_optimization_job(
                         &temp,
                         options.video_crf,
                         options.use_h265,
-                        active_job.clone(),
-                    );
+                        active_job.clone(), &app,
+                        );
                     match result {
                         Ok(_) => {
                             let out_size = fs::metadata(&temp).map(|m| m.len()).unwrap_or(0);
@@ -523,7 +542,7 @@ pub fn run_optimization_job(
                             } else {
                                 // Re-encoded file is larger — keep original
                                 let _ = fs::remove_file(&temp);
-                                if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                                if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                     let mut progress = active_job.progress.lock().unwrap();
                                     progress.processed_files += 1;
                                     progress.original_kept_files += 1;
@@ -537,7 +556,7 @@ pub fn run_optimization_job(
                         }
                         Err(_) => {
                             let _ = fs::remove_file(&temp);
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                            if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                 let mut progress = active_job.progress.lock().unwrap();
                                 progress.processed_files += 1;
                                 progress.copied_files += 1;
@@ -546,7 +565,7 @@ pub fn run_optimization_job(
                         }
                     }
                 } else {
-                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                    if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                         let mut progress = active_job.progress.lock().unwrap();
                         progress.processed_files += 1;
                         progress.copied_files += 1;
@@ -563,17 +582,19 @@ pub fn run_optimization_job(
             FileType::AudioWav | FileType::AudioFlac | FileType::AudioOgg | FileType::AudioM4a => {
                 if options.convert_wav_to_mp3 {
                     let mp3_out = out_file_path.with_extension("mp3");
+                    let mp3_tmp = out_file_path.with_extension("mp3.fileforge.tmp");
                     if let Some(parent) = mp3_out.parent() {
                         let _ = fs::create_dir_all(parent);
                     }
                     let result = crate::optimizer::video::convert_wav_to_mp3(
                         &in_file_path,
-                        &mp3_out,
+                        &mp3_tmp,
                         options.mp3_bitrate,
-                        active_job.clone(),
-                    );
+                        active_job.clone(), &app,
+                        );
                     match result {
                         Ok(_) => {
+                            let _ = fs::rename(&mp3_tmp, &mp3_out);
                             let out_size = fs::metadata(&mp3_out).map(|m| m.len()).unwrap_or(0);
                             let mut progress = active_job.progress.lock().unwrap();
                             progress.processed_files += 1;
@@ -581,10 +602,12 @@ pub fn run_optimization_job(
                             progress.output_bytes += out_size;
                         }
                         Err(ref e) if e == "Скасовано" => {
+                            let _ = fs::remove_file(&mp3_tmp);
                             return;
                         }
                         Err(_) => {
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                            let _ = fs::remove_file(&mp3_tmp);
+                            if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                 let mut progress = active_job.progress.lock().unwrap();
                                 progress.processed_files += 1;
                                 progress.copied_files += 1;
@@ -593,7 +616,7 @@ pub fn run_optimization_job(
                         }
                     }
                 } else {
-                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                    if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                         let mut progress = active_job.progress.lock().unwrap();
                         progress.processed_files += 1;
                         progress.copied_files += 1;
@@ -610,16 +633,18 @@ pub fn run_optimization_job(
             FileType::ImageGif => {
                 if options.convert_gif_to_mp4 {
                     let mp4_out = out_file_path.with_extension("mp4");
+                    let mp4_tmp = out_file_path.with_extension("mp4.fileforge.tmp");
                     if let Some(parent) = mp4_out.parent() {
                         let _ = fs::create_dir_all(parent);
                     }
                     let result = crate::optimizer::video::convert_gif_to_mp4(
                         &in_file_path,
-                        &mp4_out,
-                        active_job.clone(),
-                    );
+                        &mp4_tmp,
+                        active_job.clone(), &app,
+                        );
                     match result {
                         Ok(_) => {
+                            let _ = fs::rename(&mp4_tmp, &mp4_out);
                             let out_size = fs::metadata(&mp4_out).map(|m| m.len()).unwrap_or(0);
                             let mut progress = active_job.progress.lock().unwrap();
                             progress.processed_files += 1;
@@ -627,10 +652,12 @@ pub fn run_optimization_job(
                             progress.output_bytes += out_size;
                         }
                         Err(ref e) if e == "Скасовано" => {
+                            let _ = fs::remove_file(&mp4_tmp);
                             return;
                         }
                         Err(_) => {
-                            if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                            let _ = fs::remove_file(&mp4_tmp);
+                            if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                                 let mut progress = active_job.progress.lock().unwrap();
                                 progress.processed_files += 1;
                                 progress.copied_files += 1;
@@ -639,7 +666,7 @@ pub fn run_optimization_job(
                         }
                     }
                 } else {
-                    if fs::copy(&in_file_path, &out_file_path).is_ok() {
+                    if atomic_copy(&in_file_path, &out_file_path).is_ok() {
                         let mut progress = active_job.progress.lock().unwrap();
                         progress.processed_files += 1;
                         progress.copied_files += 1;
@@ -814,7 +841,7 @@ fn copy_fallback_helper(
     } else {
         out_file_path.to_path_buf()
     };
-    if fs::copy(in_file_path, &fallback_target).is_ok() {
+    if atomic_copy(in_file_path, &fallback_target).is_ok() {
         let mut progress = active_job.progress.lock().unwrap();
         progress.processed_files += 1;
         progress.original_kept_files += 1;
@@ -973,4 +1000,11 @@ mod tests {
 
         let _ = fs::remove_dir_all(&base_temp);
     }
+}
+
+fn atomic_copy(src: &Path, dst: &Path) -> std::io::Result<u64> {
+    let tmp = dst.with_extension("copy.fileforge.tmp");
+    let size = fs::copy(src, &tmp)?;
+    let _ = fs::rename(&tmp, dst);
+    Ok(size)
 }

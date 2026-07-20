@@ -32,6 +32,54 @@ pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
 }
 
 /// Returns true if ffmpeg is available on this system.
+pub fn find_ffprobe() -> Option<std::path::PathBuf> {
+    let possible_local_paths = [
+        "ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe",
+        "../ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe",
+    ];
+
+    for path in possible_local_paths {
+        let p = std::path::PathBuf::from(path);
+        if p.exists() {
+            if let Ok(canonical) = std::fs::canonicalize(&p) {
+                return Some(canonical);
+            }
+            return Some(p);
+        }
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            let bundled = parent.join("ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe");
+            if bundled.exists() {
+                return Some(bundled);
+            }
+        }
+    }
+
+    which::which("ffprobe").ok()
+}
+
+pub fn get_video_duration(path: &Path) -> Option<f64> {
+    let ffprobe = find_ffprobe()?;
+    let output = std::process::Command::new(&ffprobe)
+        .args([
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            path.to_str().unwrap()
+        ])
+        .output()
+        .ok()?;
+    
+    if output.status.success() {
+        let duration_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        duration_str.parse::<f64>().ok()
+    } else {
+        None
+    }
+}
+
 pub fn ffmpeg_available() -> bool {
     find_ffmpeg().is_some()
 }
@@ -43,7 +91,49 @@ fn wait_for_ffmpeg(
     mut child: std::process::Child,
     output_path: &Path,
     active_job: &Arc<crate::ActiveJob>,
+    app: &tauri::AppHandle,
+    total_duration: Option<f64>,
 ) -> Result<(), String> {
+    use std::io::{BufRead, BufReader};
+    use tauri::Emitter;
+
+    if let Some(stderr) = child.stderr.take() {
+        let active_job = active_job.clone();
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                if active_job.cancelled.load(Ordering::Relaxed) {
+                    break;
+                }
+                let Ok(line) = line else { break };
+                if let Some(total_dur) = total_duration {
+                    if let Some(time_idx) = line.find("time=") {
+                        let time_str = &line[time_idx + 5..];
+                        let parts: Vec<&str> = time_str.split(':').collect();
+                        if parts.len() == 3 {
+                            let h = parts[0].parse::<f64>().unwrap_or(0.0);
+                            let m = parts[1].parse::<f64>().unwrap_or(0.0);
+                            let s_parts: Vec<&str> = parts[2].split_whitespace().collect();
+                            if !s_parts.is_empty() {
+                                let s = s_parts[0].parse::<f64>().unwrap_or(0.0);
+                                let current_dur = h * 3600.0 + m * 60.0 + s;
+                                let mut progress = (current_dur / total_dur) * 100.0;
+                                if progress > 100.0 { progress = 100.0; }
+                                if progress < 0.0 { progress = 0.0; }
+                                
+                                {
+                                    let mut prog_lock = active_job.progress.lock().unwrap();
+                                    prog_lock.current_file_progress = Some(progress as f32);
+                                }
+                                let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
     loop {
         if active_job.cancelled.load(Ordering::Relaxed) {
             let _ = child.kill();
@@ -83,7 +173,7 @@ fn spawn_ffmpeg<'a>(
         .args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("Не вдалося запустити FFmpeg: {e}"))
 }
@@ -99,7 +189,9 @@ pub fn convert_video(
     crf: u8,
     use_h265: bool,
     active_job: Arc<crate::ActiveJob>,
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
+    let total_duration = get_video_duration(input_path);
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
         "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
     })?;
@@ -122,7 +214,7 @@ pub fn convert_video(
         ],
     )?;
 
-    wait_for_ffmpeg(child, output_path, &active_job)
+    wait_for_ffmpeg(child, output_path, &active_job, app, total_duration)
 }
 
 /// Re-encodes an existing MP4 to a smaller size using YouTube-like settings:
@@ -133,7 +225,9 @@ pub fn optimize_mp4(
     crf: u8,
     use_h265: bool,
     active_job: Arc<crate::ActiveJob>,
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
+    let total_duration = get_video_duration(input_path);
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
         "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
     })?;
@@ -156,7 +250,7 @@ pub fn optimize_mp4(
         ],
     )?;
 
-    wait_for_ffmpeg(child, output_path, &active_job)
+    wait_for_ffmpeg(child, output_path, &active_job, app, total_duration)
 }
 
 /// Converts WAV → MP3 using libmp3lame at the given bitrate (kbps).
@@ -165,7 +259,9 @@ pub fn convert_wav_to_mp3(
     output_path: &Path,
     bitrate_kbps: u32,
     active_job: Arc<crate::ActiveJob>,
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
+    let total_duration = get_video_duration(input_path);
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
         "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
     })?;
@@ -185,7 +281,7 @@ pub fn convert_wav_to_mp3(
         ],
     )?;
 
-    wait_for_ffmpeg(child, output_path, &active_job)
+    wait_for_ffmpeg(child, output_path, &active_job, app, total_duration)
 }
 
 /// Extracts audio from a video file and saves it as MP3.
@@ -194,7 +290,9 @@ pub fn extract_audio_to_mp3(
     output_path: &Path,
     bitrate_kbps: u32,
     active_job: Arc<crate::ActiveJob>,
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
+    let total_duration = get_video_duration(input_path);
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
         "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
     })?;
@@ -215,7 +313,7 @@ pub fn extract_audio_to_mp3(
         ],
     )?;
 
-    wait_for_ffmpeg(child, output_path, &active_job)
+    wait_for_ffmpeg(child, output_path, &active_job, app, total_duration)
 }
 
 /// Converts an animated GIF to a silent MP4.
@@ -223,7 +321,9 @@ pub fn convert_gif_to_mp4(
     input_path: &Path,
     output_path: &Path,
     active_job: Arc<crate::ActiveJob>,
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
+    let total_duration = get_video_duration(input_path);
     let ffmpeg = find_ffmpeg().ok_or_else(|| {
         "FFmpeg не знайдено у системі. Встановіть FFmpeg і перезапустіть застосунок.".to_string()
     })?;
@@ -245,5 +345,5 @@ pub fn convert_gif_to_mp4(
         ],
     )?;
 
-    wait_for_ffmpeg(child, output_path, &active_job)
+    wait_for_ffmpeg(child, output_path, &active_job, app, total_duration)
 }
