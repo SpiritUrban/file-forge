@@ -36,6 +36,7 @@ function App() {
     optimizedFiles: 0,
     copiedFiles: 0,
     originalKeptFiles: 0,
+    skippedFiles: 0,
     failedFiles: 0,
     originalBytes: 0,
     outputBytes: 0,
@@ -167,6 +168,7 @@ function App() {
       optimizedFiles: 0,
       copiedFiles: 0,
       originalKeptFiles: 0,
+      skippedFiles: 0,
       failedFiles: 0,
       originalBytes: 0,
       outputBytes: 0,
@@ -673,6 +675,12 @@ function App() {
                 <span className="mini-num text-warning">{progress.originalKeptFiles}</span>
                 <span className="mini-label">Без змін</span>
               </div>
+              {progress.skippedFiles > 0 && (
+                <div className="mini-card">
+                  <span className="mini-num" style={{ color: "var(--text-muted)" }}>{progress.skippedFiles}</span>
+                  <span className="mini-label">Пропущено</span>
+                </div>
+              )}
               {progress.failedFiles > 0 && (
                 <div className="mini-card">
                   <span className="mini-num text-danger">{progress.failedFiles}</span>
@@ -742,6 +750,12 @@ function App() {
                 <span className="stat-value text-warning">{progress.originalKeptFiles}</span>
                 <span className="stat-label">Залишено без змін</span>
               </div>
+              {progress.skippedFiles > 0 && (
+                <div className="stat-card">
+                  <span className="stat-value" style={{ color: "var(--text-muted)" }}>{progress.skippedFiles}</span>
+                  <span className="stat-label">Пропущено</span>
+                </div>
+              )}
               {progress.failedFiles > 0 && (
                 <div className="stat-card error-border">
                   <span className="stat-value text-danger">{progress.failedFiles}</span>

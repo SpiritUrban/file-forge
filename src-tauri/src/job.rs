@@ -120,12 +120,6 @@ pub fn validate_paths(input: &Path, output: &Path) -> Result<(), String> {
     if output.starts_with(input) {
         return Err("Вихідна папка не повинна знаходитися всередині вхідної.".to_string());
     }
-    if output.exists() {
-        return Err(
-            "Папка результату вже існує.\n\nВидаліть або перейменуйте її перед повторним запуском."
-                .to_string(),
-        );
-    }
     Ok(())
 }
 
@@ -225,6 +219,45 @@ pub fn run_optimization_job(
             rel_path.clone()
         };
         let out_file_path = output_path.join(&out_rel_path);
+
+        let mut final_out_file_path = out_file_path.clone();
+        match file_type {
+            FileType::VideoVob | FileType::VideoAvi | FileType::VideoMkv | FileType::VideoMov | FileType::VideoWmv | FileType::VideoFlv | FileType::VideoWebm => {
+                if options.extract_audio {
+                    final_out_file_path = final_out_file_path.with_extension("mp3");
+                } else if options.convert_video {
+                    final_out_file_path = final_out_file_path.with_extension("mp4");
+                }
+            }
+            FileType::VideoMp4 => {
+                if options.extract_audio {
+                    final_out_file_path = final_out_file_path.with_extension("mp3");
+                }
+            }
+            FileType::AudioWav | FileType::AudioFlac | FileType::AudioOgg | FileType::AudioM4a => {
+                if options.convert_wav_to_mp3 {
+                    final_out_file_path = final_out_file_path.with_extension("mp3");
+                }
+            }
+            FileType::ImageGif => {
+                if options.convert_gif_to_mp4 {
+                    final_out_file_path = final_out_file_path.with_extension("mp4");
+                }
+            }
+            _ => {}
+        }
+
+        if final_out_file_path.exists() {
+            let out_size = fs::metadata(&final_out_file_path).map(|m| m.len()).unwrap_or(0);
+            {
+                let mut progress = active_job.progress.lock().unwrap();
+                progress.processed_files += 1;
+                progress.skipped_files += 1;
+                progress.output_bytes += out_size;
+            }
+            let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+            return;
+        }
 
         // Safety fallback: ensure parent directory exists
         if let Some(parent) = out_file_path.parent() {

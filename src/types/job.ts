@@ -14,6 +14,7 @@ export interface JobProgress {
   optimizedFiles: number;
   copiedFiles: number;
   originalKeptFiles: number;
+  skippedFiles: number;
   failedFiles: number;
   originalBytes: number;
   outputBytes: number;
