@@ -76,4 +76,21 @@ jobs:
           echo "::error title=Clippy output::$log"
 
       - name: Run Rust Unit Tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --manifest-path src-tauri/Cargo.toml 2>&1 | tee test.log
+
+      - name: Surface Test output
+        if: failure()
+        shell: bash
+        run: |
+          if [ ! -s test.log ]; then
+            echo "::error title=Test::test.log is missing or empty"
+            exit 0
+          fi
+          log=$(tail -c 6000 test.log)
+          log="${log//'%'/'%25'}"
+          log="${log//$'\r'/'%0D'}"
+          log="${log//$'\n'/'%0A'}"
+          echo "::error title=Test output::$log"

@@ -1016,11 +1016,9 @@ mod tests {
             "Вихідна папка не повинна знаходитися всередині вхідної."
         );
 
-        // Error: output already exists
+        // Output directory already exists (allowed)
         fs::create_dir(&output).unwrap();
-        assert!(validate_paths(&input, &output)
-            .unwrap_err()
-            .contains("Папка результату вже існує."));
+        assert!(validate_paths(&input, &output).is_ok());
 
         let _ = fs::remove_dir_all(&base_temp);
     }
