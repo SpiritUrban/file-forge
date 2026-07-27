@@ -9,21 +9,27 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const resourcesDir = path.join(rootDir, 'src-tauri', 'resources');
 
-function getTargetPlatform() {
+function getFFmpegPlatformKey() {
   const arg = process.argv[2];
-  if (arg) return arg;
+  let p = arg;
+  if (!p) {
+    const platform = process.platform;
+    const arch = process.arch;
+    if (platform === 'win32') p = 'win-64';
+    else if (platform === 'linux') p = arch === 'arm64' ? 'linux-arm-64' : 'linux-64';
+    else if (platform === 'darwin') p = 'macos-64';
+    else p = 'win-64';
+  }
 
-  const platform = process.platform;
-  const arch = process.arch;
-
-  if (platform === 'win32') return 'win-64';
-  if (platform === 'linux') return arch === 'arm64' ? 'linux-arm64' : 'linux-64';
-  if (platform === 'darwin') return 'osx-64';
-  return 'win-64';
+  if (p === 'osx-64' || p === 'macos-64' || p === 'macos' || p === 'darwin') return 'macos-64';
+  if (p === 'win-64' || p === 'win' || p === 'windows') return 'win-64';
+  if (p === 'linux-64' || p === 'linux') return 'linux-64';
+  if (p === 'linux-arm64') return 'linux-arm-64';
+  return p;
 }
 
-const targetPlatform = getTargetPlatform();
-console.log(`Downloading static FFmpeg binaries for platform: ${targetPlatform}...`);
+const targetPlatform = getFFmpegPlatformKey();
+console.log(`Downloading static FFmpeg binaries for platform key: ${targetPlatform}...`);
 
 if (!fs.existsSync(resourcesDir)) {
   fs.mkdirSync(resourcesDir, { recursive: true });
