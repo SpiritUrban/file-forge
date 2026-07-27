@@ -1,7 +1,7 @@
 {
   "name": "file-forge",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Spirit Urban <https://spiriturban.github.io/>",
   "homepage": "https://spiriturban.github.io/file-forge/",
   "type": "module",
