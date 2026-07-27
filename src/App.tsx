@@ -42,6 +42,7 @@ function App() {
     failedFiles: 0,
     originalBytes: 0,
     outputBytes: 0,
+    currentFileProgress: null,
   });
 
   // Sync initial state and listen to backend events
@@ -182,6 +183,7 @@ function App() {
       failedFiles: 0,
       originalBytes: 0,
       outputBytes: 0,
+      currentFileProgress: null,
     });
   };
 

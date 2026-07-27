@@ -18,7 +18,7 @@ export interface JobProgress {
   failedFiles: number;
   originalBytes: number;
   outputBytes: number;
-  currentFileProgress: number | null;
+  currentFileProgress?: number | null;
 }
 
 export interface FolderSelection {

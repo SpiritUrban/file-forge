@@ -121,7 +121,8 @@ fn wait_for_ffmpeg(
                             if !s_parts.is_empty() {
                                 let s = s_parts[0].parse::<f64>().unwrap_or(0.0);
                                 let current_dur = h * 3600.0 + m * 60.0 + s;
-                                let progress = ((current_dur / total_dur) * 100.0).clamp(0.0, 100.0);
+                                let progress =
+                                    ((current_dur / total_dur) * 100.0).clamp(0.0, 100.0);
 
                                 {
                                     let mut prog_lock = active_job.progress.lock().unwrap();
