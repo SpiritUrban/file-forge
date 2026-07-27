@@ -10,28 +10,53 @@ fn binary_name(base: &str) -> String {
     }
 }
 
+pub fn get_app_data_bin_dir() -> Option<std::path::PathBuf> {
+    if cfg!(target_os = "windows") {
+        std::env::var("LOCALAPPDATA")
+            .ok()
+            .map(|p| std::path::PathBuf::from(p).join("file_forge").join("bin"))
+    } else if let Ok(home) = std::env::var("HOME") {
+        Some(
+            std::path::PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("file_forge")
+                .join("bin"),
+        )
+    } else {
+        None
+    }
+}
+
 /// Finds `ffmpeg` in bundled resources, app data, adjacent dir, or PATH.
 pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
     let name = binary_name("ffmpeg");
 
+    if let Some(app_data_bin) = get_app_data_bin_dir() {
+        let app_data_file = app_data_bin.join(&name);
+        if app_data_file.exists() {
+            return Some(app_data_file);
+        }
+    }
+
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(parent) = exe_path.parent() {
-            // Check beside executable
             let beside = parent.join(&name);
             if beside.exists() {
                 return Some(beside);
             }
-            // Check resources folder (Tauri bundled resources)
             let resources = parent.join("resources").join(&name);
             if resources.exists() {
                 return Some(resources);
             }
-            // Check macOS bundle structure Contents/Resources
+            let up_resources = parent.join("_up_").join("resources").join(&name);
+            if up_resources.exists() {
+                return Some(up_resources);
+            }
             let macos_resources = parent.join("../Resources").join(&name);
             if macos_resources.exists() {
                 return Some(macos_resources);
             }
-            // Legacy local build dir check
             let legacy = parent.join("ffmpeg-8.1.2-essentials_build/bin").join(&name);
             if legacy.exists() {
                 return Some(legacy);
@@ -39,7 +64,6 @@ pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
         }
     }
 
-    // Check system PATH
     which::which("ffmpeg").ok()
 }
 
@@ -47,24 +71,31 @@ pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
 pub fn find_ffprobe() -> Option<std::path::PathBuf> {
     let name = binary_name("ffprobe");
 
+    if let Some(app_data_bin) = get_app_data_bin_dir() {
+        let app_data_file = app_data_bin.join(&name);
+        if app_data_file.exists() {
+            return Some(app_data_file);
+        }
+    }
+
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(parent) = exe_path.parent() {
-            // Check beside executable
             let beside = parent.join(&name);
             if beside.exists() {
                 return Some(beside);
             }
-            // Check resources folder (Tauri bundled resources)
             let resources = parent.join("resources").join(&name);
             if resources.exists() {
                 return Some(resources);
             }
-            // Check macOS bundle structure Contents/Resources
+            let up_resources = parent.join("_up_").join("resources").join(&name);
+            if up_resources.exists() {
+                return Some(up_resources);
+            }
             let macos_resources = parent.join("../Resources").join(&name);
             if macos_resources.exists() {
                 return Some(macos_resources);
             }
-            // Legacy local build dir check
             let legacy = parent.join("ffmpeg-8.1.2-essentials_build/bin").join(&name);
             if legacy.exists() {
                 return Some(legacy);
@@ -72,8 +103,70 @@ pub fn find_ffprobe() -> Option<std::path::PathBuf> {
         }
     }
 
-    // Check system PATH
     which::which("ffprobe").ok()
+}
+
+pub fn auto_download_ffmpeg() -> Result<(), String> {
+    let bin_dir =
+        get_app_data_bin_dir().ok_or_else(|| "Could not resolve AppData directory".to_string())?;
+    std::fs::create_dir_all(&bin_dir).map_err(|e| e.to_string())?;
+
+    if cfg!(target_os = "windows") {
+        let script = format!(
+            "$binDir = '{}'; \
+             $ffmpegZip = Join-Path $binDir 'ffmpeg.zip'; \
+             $ffprobeZip = Join-Path $binDir 'ffprobe.zip'; \
+             Invoke-WebRequest -Uri 'https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-win-64.zip' -OutFile $ffmpegZip; \
+             Invoke-WebRequest -Uri 'https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-win-64.zip' -OutFile $ffprobeZip; \
+             Expand-Archive -Path $ffmpegZip -DestinationPath $binDir -Force; \
+             Expand-Archive -Path $ffprobeZip -DestinationPath $binDir -Force; \
+             Remove-Item -Path $ffmpegZip -Force; \
+             Remove-Item -Path $ffprobeZip -Force;",
+            bin_dir.to_string_lossy().replace('\'', "''")
+        );
+        let output = std::process::Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg(&script)
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("PowerShell download failed: {}", stderr));
+        }
+    } else {
+        let platform_key = if cfg!(target_os = "macos") {
+            "macos-64"
+        } else {
+            "linux-64"
+        };
+        let script = format!(
+            "BIN_DIR=\"{}\"; \
+             mkdir -p \"$BIN_DIR\"; \
+             curl -L -o \"$BIN_DIR/ffmpeg.zip\" \"https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-{}.zip\"; \
+             curl -L -o \"$BIN_DIR/ffprobe.zip\" \"https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-{}.zip\"; \
+             unzip -o \"$BIN_DIR/ffmpeg.zip\" -d \"$BIN_DIR\"; \
+             unzip -o \"$BIN_DIR/ffprobe.zip\" -d \"$BIN_DIR\"; \
+             rm -f \"$BIN_DIR/ffmpeg.zip\" \"$BIN_DIR/ffprobe.zip\"; \
+             chmod +x \"$BIN_DIR/ffmpeg\" \"$BIN_DIR/ffprobe\";",
+            bin_dir.to_string_lossy(),
+            platform_key,
+            platform_key
+        );
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&script)
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Download failed: {}", stderr));
+        }
+    }
+
+    Ok(())
 }
 
 pub fn get_video_duration(path: &Path) -> Option<f64> {

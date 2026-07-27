@@ -26,6 +26,11 @@ function App() {
   const [mp3Bitrate, setMp3Bitrate] = useState<number>(128);
   const [convertGifToMp4, setConvertGifToMp4] = useState<boolean>(false);
   const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
+  const [isDownloadingFfmpeg, setIsDownloadingFfmpeg] = useState<boolean>(false);
+  const [ffmpegDownloadError, setFfmpegDownloadError] = useState<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState<any>(null);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+
   const [theme, setTheme] = useState<"light" | "dark">(
     (localStorage.getItem("theme") as any) || "light"
   );
@@ -95,6 +100,37 @@ function App() {
   useEffect(() => {
     invoke<boolean>("check_ffmpeg").then(setFfmpegAvailable).catch(() => setFfmpegAvailable(false));
   }, []);
+
+  // Check for auto-updater on mount
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        const update = await check();
+        if (update && update.available) {
+          setUpdateAvailable(update);
+        }
+      } catch (err) {
+        console.log("Updater check skipped/failed:", err);
+      }
+    }
+    checkForUpdates();
+  }, []);
+
+  const handleDownloadFfmpeg = async () => {
+    try {
+      setIsDownloadingFfmpeg(true);
+      setFfmpegDownloadError(null);
+      await invoke("download_ffmpeg");
+      const available = await invoke<boolean>("check_ffmpeg");
+      setFfmpegAvailable(available);
+    } catch (err: any) {
+      console.error("Auto download FFmpeg failed:", err);
+      setFfmpegDownloadError(err?.toString() || "Помилка завантаження FFmpeg.");
+    } finally {
+      setIsDownloadingFfmpeg(false);
+    }
+  };
 
   const handleOpenAuthor = async () => {
     try {
@@ -227,6 +263,28 @@ function App() {
             Швидка та безпечна оптимізація ваших зображень без втрати якості
           </p>
         </header>
+
+        {/* Update Notification */}
+        {updateAvailable && (
+          <div className="update-banner">
+            <span>🎉 Доступне оновлення <strong>FileForge v{updateAvailable.version}</strong>!</span>
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={isUpdating}
+              onClick={async () => {
+                try {
+                  setIsUpdating(true);
+                  await updateAvailable.downloadAndInstall();
+                } catch (err: any) {
+                  setError("Помилка оновлення: " + err.toString());
+                  setIsUpdating(false);
+                }
+              }}
+            >
+              {isUpdating ? "Оновлюємо..." : "Оновити зараз 🚀"}
+            </button>
+          </div>
+        )}
 
         {/* Error Notification */}
         {error && (
@@ -397,13 +455,32 @@ function App() {
                 {/* Video Conversion Section */}
                 <div className="setting-control-column">
                   {ffmpegAvailable === false && (
-                    <div className="ffmpeg-banner">
-                      <span className="ffmpeg-banner-icon">⚠️</span>
+                    <div className={`ffmpeg-banner ${isDownloadingFfmpeg ? "downloading" : ""}`}>
+                      <span className="ffmpeg-banner-icon">{isDownloadingFfmpeg ? "⏳" : "⚠️"}</span>
                       <div className="ffmpeg-banner-text">
-                        <span className="ffmpeg-banner-title">FFmpeg не знайдено</span>
-                        <span className="ffmpeg-banner-desc">
-                          Встановіть FFmpeg та перезапустіть застосунок, щоб увімкнути конвертацію відео.
+                        <span className="ffmpeg-banner-title">
+                          {isDownloadingFfmpeg ? "Завантаження кодеків FFmpeg..." : "FFmpeg кодеки не підключено"}
                         </span>
+                        <span className="ffmpeg-banner-desc">
+                          {isDownloadingFfmpeg
+                            ? "Завантажуємо та налаштовуємо бінарні файли (це займає ~5-10 секунд)..."
+                            : "Для обробки відео та витягування аудіо потрібні бінарні файли FFmpeg."}
+                        </span>
+                        {ffmpegDownloadError && (
+                          <span className="ffmpeg-banner-error" style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                            {ffmpegDownloadError}
+                          </span>
+                        )}
+                        {!isDownloadingFfmpeg && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ marginTop: "10px", width: "fit-content" }}
+                            onClick={handleDownloadFfmpeg}
+                          >
+                            📥 Завантажити FFmpeg автоматично (1-клік)
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}

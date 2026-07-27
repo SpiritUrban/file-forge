@@ -53,6 +53,11 @@ pub fn check_ffmpeg() -> bool {
 }
 
 #[tauri::command]
+pub fn download_ffmpeg() -> Result<(), String> {
+    crate::optimizer::video::auto_download_ffmpeg()
+}
+
+#[tauri::command]
 pub fn start_optimization(
     input_path: String,
     output_path: String,

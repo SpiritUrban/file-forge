@@ -13,10 +13,12 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(active_job)
         .invoke_handler(tauri::generate_handler![
             commands::select_folder,
             commands::check_ffmpeg,
+            commands::download_ffmpeg,
             commands::start_optimization,
             commands::get_job_progress,
             commands::open_folder,
