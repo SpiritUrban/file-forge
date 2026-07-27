@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "version:sync": "node scripts/sync-version.mjs",
-    "version:check": "node scripts/check-version.mjs"
+    "version:check": "node scripts/check-version.mjs",
+    "ffmpeg:download": "node scripts/download-ffmpeg-resources.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

@@ -2,61 +2,77 @@ use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-/// Finds `ffmpeg` in PATH and returns its full path.
-pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
-    let possible_local_paths = [
-        "ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe",
-        "../ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe",
-    ];
-
-    for path in possible_local_paths {
-        let p = std::path::PathBuf::from(path);
-        if p.exists() {
-            if let Ok(canonical) = std::fs::canonicalize(&p) {
-                return Some(canonical);
-            }
-            return Some(p);
-        }
+fn binary_name(base: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{}.exe", base)
+    } else {
+        base.to_string()
     }
+}
+
+/// Finds `ffmpeg` in bundled resources, app data, adjacent dir, or PATH.
+pub fn find_ffmpeg() -> Option<std::path::PathBuf> {
+    let name = binary_name("ffmpeg");
 
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(parent) = exe_path.parent() {
-            let bundled = parent.join("ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe");
-            if bundled.exists() {
-                return Some(bundled);
+            // Check beside executable
+            let beside = parent.join(&name);
+            if beside.exists() {
+                return Some(beside);
+            }
+            // Check resources folder (Tauri bundled resources)
+            let resources = parent.join("resources").join(&name);
+            if resources.exists() {
+                return Some(resources);
+            }
+            // Check macOS bundle structure Contents/Resources
+            let macos_resources = parent.join("../Resources").join(&name);
+            if macos_resources.exists() {
+                return Some(macos_resources);
+            }
+            // Legacy local build dir check
+            let legacy = parent.join("ffmpeg-8.1.2-essentials_build/bin").join(&name);
+            if legacy.exists() {
+                return Some(legacy);
             }
         }
     }
 
+    // Check system PATH
     which::which("ffmpeg").ok()
 }
 
-/// Returns true if ffmpeg is available on this system.
+/// Finds `ffprobe` in bundled resources, app data, adjacent dir, or PATH.
 pub fn find_ffprobe() -> Option<std::path::PathBuf> {
-    let possible_local_paths = [
-        "ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe",
-        "../ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe",
-    ];
-
-    for path in possible_local_paths {
-        let p = std::path::PathBuf::from(path);
-        if p.exists() {
-            if let Ok(canonical) = std::fs::canonicalize(&p) {
-                return Some(canonical);
-            }
-            return Some(p);
-        }
-    }
+    let name = binary_name("ffprobe");
 
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(parent) = exe_path.parent() {
-            let bundled = parent.join("ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe");
-            if bundled.exists() {
-                return Some(bundled);
+            // Check beside executable
+            let beside = parent.join(&name);
+            if beside.exists() {
+                return Some(beside);
+            }
+            // Check resources folder (Tauri bundled resources)
+            let resources = parent.join("resources").join(&name);
+            if resources.exists() {
+                return Some(resources);
+            }
+            // Check macOS bundle structure Contents/Resources
+            let macos_resources = parent.join("../Resources").join(&name);
+            if macos_resources.exists() {
+                return Some(macos_resources);
+            }
+            // Legacy local build dir check
+            let legacy = parent.join("ffmpeg-8.1.2-essentials_build/bin").join(&name);
+            if legacy.exists() {
+                return Some(legacy);
             }
         }
     }
 
+    // Check system PATH
     which::which("ffprobe").ok()
 }
 

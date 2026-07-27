@@ -29,4 +29,6 @@ dist-ssr
 # Build artifacts
 site/dist
 download-manifest.json
+src-tauri/resources
+
 

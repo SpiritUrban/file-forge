@@ -61,6 +61,17 @@ jobs:
 
       - run: npm ci
 
+      - name: Download & Bundle Static FFmpeg
+        shell: bash
+        run: |
+          if [ "${{ matrix.label }}" = "windows-x64" ]; then
+            npm run ffmpeg:download win-64
+          elif [ "${{ matrix.label }}" = "linux-x64" ]; then
+            npm run ffmpeg:download linux-64
+          else
+            npm run ffmpeg:download osx-64
+          fi
+
       # Rule 20: Pre-build step to capture build logs
       - name: Build Desktop App
         shell: bash
