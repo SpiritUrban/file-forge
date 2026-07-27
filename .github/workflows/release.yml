@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run version:check
+
+  build-tauri:
+    needs: validate-version
+    name: Build Desktop App (${{ matrix.label }})
+    permissions:
+      contents: write
+    # Rule 11: Env at job level, not step level
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Rules 3 and 4: No macos-13, keys without hyphens
+        include:
+          - { platform: 'windows-latest', label: 'windows-x64', args: '', rust_targets: '' }
+          - { platform: 'ubuntu-22.04',   label: 'linux-x64',   args: '', rust_targets: '' }
+          - { platform: 'macos-latest',   label: 'macos-arm64',
+              args: '--target aarch64-apple-darwin', rust_targets: 'aarch64-apple-darwin' }
+          - { platform: 'macos-latest',   label: 'macos-x64',
+              args: '--target x86_64-apple-darwin',  rust_targets: 'x86_64-apple-darwin' }
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: '${{ matrix.rust_targets }}'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.label }}
+
+      - name: Install Linux GUI Dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - run: npm ci
+
+      # Rule 20: Pre-build step to capture build logs
+      - name: Build Desktop App
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run tauri build -- ${{ matrix.args }} 2>&1 | tee build.log
+
+      - name: Surface build output
+        if: failure()
+        shell: bash
+        run: |
+          if [ ! -s build.log ]; then
+            echo "::error title=Build::build.log is missing or empty"
+            exit 0
+          fi
+          log=$(tail -c 6000 build.log)
+          log="${log//'%'/'%25'}"
+          log="${log//$'\r'/'%0D'}"
+          log="${log//$'\n'/'%0A'}"
+          echo "::error title=Build output::$log"
+
+      - name: Build Tauri Application
+        uses: tauri-apps/tauri-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: './src-tauri'
+          tauriScript: 'npm run tauri'
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('FileForge {0}', github.ref_name) || '' }}
+          releaseBody: 'See release notes for FileForge ${{ github.ref_name }}.'
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
+
+  # Rule 14: Deploy site as dependent job via workflow_call
+  deploy-site:
+    needs: build-tauri
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

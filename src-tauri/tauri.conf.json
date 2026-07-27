@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
+  "productName": "FileForge",
   "version": "0.1.0",
-  "identifier": "com.spiri.tauri-app",
+  "identifier": "com.spiriturban.fileforge",
   "build": {
     "beforeDevCommand": "npm run dev:frontend",
     "devUrl": "http://localhost:1420",
@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "tauri-app",
-        "width": 800,
-        "height": 600
+        "title": "FileForge",
+        "width": 960,
+        "height": 680
       }
     ],
     "security": {
@@ -24,12 +24,27 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Spirit Urban",
+    "copyright": "Copyright © 2026 Spirit Urban",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/SpiritUrban/file-forge/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

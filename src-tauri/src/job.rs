@@ -222,7 +222,13 @@ pub fn run_optimization_job(
 
         let mut final_out_file_path = out_file_path.clone();
         match file_type {
-            FileType::VideoVob | FileType::VideoAvi | FileType::VideoMkv | FileType::VideoMov | FileType::VideoWmv | FileType::VideoFlv | FileType::VideoWebm => {
+            FileType::VideoVob
+            | FileType::VideoAvi
+            | FileType::VideoMkv
+            | FileType::VideoMov
+            | FileType::VideoWmv
+            | FileType::VideoFlv
+            | FileType::VideoWebm => {
                 if options.extract_audio {
                     final_out_file_path = final_out_file_path.with_extension("mp3");
                 } else if options.convert_video {
@@ -239,16 +245,16 @@ pub fn run_optimization_job(
                     final_out_file_path = final_out_file_path.with_extension("mp3");
                 }
             }
-            FileType::ImageGif => {
-                if options.convert_gif_to_mp4 {
-                    final_out_file_path = final_out_file_path.with_extension("mp4");
-                }
+            FileType::ImageGif if options.convert_gif_to_mp4 => {
+                final_out_file_path = final_out_file_path.with_extension("mp4");
             }
             _ => {}
         }
 
         if final_out_file_path.exists() {
-            let out_size = fs::metadata(&final_out_file_path).map(|m| m.len()).unwrap_or(0);
+            let out_size = fs::metadata(&final_out_file_path)
+                .map(|m| m.len())
+                .unwrap_or(0);
             {
                 let mut progress = active_job.progress.lock().unwrap();
                 progress.processed_files += 1;
@@ -267,7 +273,13 @@ pub fn run_optimization_job(
         // Update current file in progress
         {
             let mut progress = active_job.progress.lock().unwrap();
-            progress.current_file = Some(in_file_path.file_name().unwrap_or_default().to_string_lossy().to_string());
+            progress.current_file = Some(
+                in_file_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
+            );
             progress.current_file_progress = None;
         }
         let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
@@ -382,7 +394,13 @@ pub fn run_optimization_job(
                     )
                 }
             }
-            FileType::VideoVob | FileType::VideoAvi | FileType::VideoMkv | FileType::VideoMov | FileType::VideoWmv | FileType::VideoFlv | FileType::VideoWebm => {
+            FileType::VideoVob
+            | FileType::VideoAvi
+            | FileType::VideoMkv
+            | FileType::VideoMov
+            | FileType::VideoWmv
+            | FileType::VideoFlv
+            | FileType::VideoWebm => {
                 if options.extract_audio {
                     let mp3_out = out_file_path.with_extension("mp3");
                     let mp3_tmp = out_file_path.with_extension("mp3.fileforge.tmp");
@@ -393,8 +411,9 @@ pub fn run_optimization_job(
                         &in_file_path,
                         &mp3_tmp,
                         options.mp3_bitrate,
-                        active_job.clone(), &app,
-                        );
+                        active_job.clone(),
+                        &app,
+                    );
                     match result {
                         Ok(_) => {
                             let _ = fs::rename(&mp3_tmp, &mp3_out);
@@ -434,8 +453,9 @@ pub fn run_optimization_job(
                         &mp4_tmp,
                         options.video_crf,
                         options.use_h265,
-                        active_job.clone(), &app,
-                        );
+                        active_job.clone(),
+                        &app,
+                    );
                     match result {
                         Ok(_) => {
                             let _ = fs::rename(&mp4_tmp, &mp4_out);
@@ -491,8 +511,9 @@ pub fn run_optimization_job(
                         &in_file_path,
                         &mp3_tmp,
                         options.mp3_bitrate,
-                        active_job.clone(), &app,
-                        );
+                        active_job.clone(),
+                        &app,
+                    );
                     match result {
                         Ok(_) => {
                             let _ = fs::rename(&mp3_tmp, &mp3_out);
@@ -528,8 +549,9 @@ pub fn run_optimization_job(
                         &temp,
                         options.video_crf,
                         options.use_h265,
-                        active_job.clone(), &app,
-                        );
+                        active_job.clone(),
+                        &app,
+                    );
                     match result {
                         Ok(_) => {
                             let out_size = fs::metadata(&temp).map(|m| m.len()).unwrap_or(0);
@@ -590,8 +612,9 @@ pub fn run_optimization_job(
                         &in_file_path,
                         &mp3_tmp,
                         options.mp3_bitrate,
-                        active_job.clone(), &app,
-                        );
+                        active_job.clone(),
+                        &app,
+                    );
                     match result {
                         Ok(_) => {
                             let _ = fs::rename(&mp3_tmp, &mp3_out);
@@ -640,8 +663,9 @@ pub fn run_optimization_job(
                     let result = crate::optimizer::video::convert_gif_to_mp4(
                         &in_file_path,
                         &mp4_tmp,
-                        active_job.clone(), &app,
-                        );
+                        active_job.clone(),
+                        &app,
+                    );
                     match result {
                         Ok(_) => {
                             let _ = fs::rename(&mp4_tmp, &mp4_out);

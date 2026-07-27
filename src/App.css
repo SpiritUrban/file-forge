@@ -1052,3 +1052,65 @@ body.dark .ffmpeg-banner-desc {
   font-weight: 600;
 }
 
+/* Author Presence Button (Section 7) */
+.author-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+.author-nav-btn:hover {
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.05);
+}
+
+body.dark .author-nav-btn {
+  color: #94a3b8;
+}
+
+body.dark .author-nav-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.author-sparkle {
+  color: #818cf8;
+  font-size: 12px;
+}
+
+.author-arrow {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  font-size: 12px;
+}
+
+.author-nav-btn:hover .author-arrow {
+  opacity: 0.7;
+}
+
+.empty-state-author {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 20px;
+}
+
+.empty-state-author a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+

@@ -64,14 +64,17 @@ pub fn get_video_duration(path: &Path) -> Option<f64> {
     let ffprobe = find_ffprobe()?;
     let output = std::process::Command::new(&ffprobe)
         .args([
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            path.to_str().unwrap()
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            path.to_str().unwrap(),
         ])
         .output()
         .ok()?;
-    
+
     if output.status.success() {
         let duration_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
         duration_str.parse::<f64>().ok()
@@ -118,15 +121,16 @@ fn wait_for_ffmpeg(
                             if !s_parts.is_empty() {
                                 let s = s_parts[0].parse::<f64>().unwrap_or(0.0);
                                 let current_dur = h * 3600.0 + m * 60.0 + s;
-                                let mut progress = (current_dur / total_dur) * 100.0;
-                                if progress > 100.0 { progress = 100.0; }
-                                if progress < 0.0 { progress = 0.0; }
-                                
+                                let progress = ((current_dur / total_dur) * 100.0).clamp(0.0, 100.0);
+
                                 {
                                     let mut prog_lock = active_job.progress.lock().unwrap();
                                     prog_lock.current_file_progress = Some(progress as f32);
                                 }
-                                let _ = app.emit("job-progress", active_job.progress.lock().unwrap().clone());
+                                let _ = app.emit(
+                                    "job-progress",
+                                    active_job.progress.lock().unwrap().clone(),
+                                );
                             }
                         }
                     }
@@ -203,13 +207,21 @@ pub fn convert_video(
     let child = spawn_ffmpeg(
         &ffmpeg,
         [
-            "-y", "-i", input,
-            "-c:v", if use_h265 { "libx265" } else { "libx264" },
-            "-crf", &crf_str,
-            "-preset", "medium",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
+            "-y",
+            "-i",
+            input,
+            "-c:v",
+            if use_h265 { "libx265" } else { "libx264" },
+            "-crf",
+            &crf_str,
+            "-preset",
+            "medium",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
             output,
         ],
     )?;
@@ -239,13 +251,21 @@ pub fn optimize_mp4(
     let child = spawn_ffmpeg(
         &ffmpeg,
         [
-            "-y", "-i", input,
-            "-c:v", if use_h265 { "libx265" } else { "libx264" },
-            "-crf", &crf_str,
-            "-preset", "slow",   // slower = better compression ratio
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
+            "-y",
+            "-i",
+            input,
+            "-c:v",
+            if use_h265 { "libx265" } else { "libx264" },
+            "-crf",
+            &crf_str,
+            "-preset",
+            "slow", // slower = better compression ratio
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
             output,
         ],
     )?;
@@ -273,10 +293,15 @@ pub fn convert_wav_to_mp3(
     let child = spawn_ffmpeg(
         &ffmpeg,
         [
-            "-y", "-i", input,
-            "-c:a", "libmp3lame",
-            "-b:a", &bitrate_str,
-            "-id3v2_version", "3",   // widely-compatible ID3 tags
+            "-y",
+            "-i",
+            input,
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            &bitrate_str,
+            "-id3v2_version",
+            "3", // widely-compatible ID3 tags
             output,
         ],
     )?;
@@ -304,11 +329,16 @@ pub fn extract_audio_to_mp3(
     let child = spawn_ffmpeg(
         &ffmpeg,
         [
-            "-y", "-i", input,
+            "-y",
+            "-i",
+            input,
             "-vn", // skip video
-            "-c:a", "libmp3lame",
-            "-b:a", &bitrate_str,
-            "-id3v2_version", "3",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            &bitrate_str,
+            "-id3v2_version",
+            "3",
             output,
         ],
     )?;
@@ -334,13 +364,20 @@ pub fn convert_gif_to_mp4(
     let child = spawn_ffmpeg(
         &ffmpeg,
         [
-            "-y", "-i", input,
-            "-c:v", "libx264",
-            "-crf", "23",
-            "-preset", "medium",
-            "-pix_fmt", "yuv420p", // essential for wide compatibility of GIF->MP4
-            "-an", // no audio in GIFs
-            "-movflags", "+faststart",
+            "-y",
+            "-i",
+            input,
+            "-c:v",
+            "libx264",
+            "-crf",
+            "23",
+            "-preset",
+            "medium",
+            "-pix_fmt",
+            "yuv420p", // essential for wide compatibility of GIF->MP4
+            "-an",     // no audio in GIFs
+            "-movflags",
+            "+faststart",
             output,
         ],
     )?;

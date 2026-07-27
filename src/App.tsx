@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { JobProgress, FolderSelection } from "./types/job";
+import { PRODUCT_METADATA } from "./metadata";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 function App() {
@@ -92,6 +94,14 @@ function App() {
   useEffect(() => {
     invoke<boolean>("check_ffmpeg").then(setFfmpegAvailable).catch(() => setFfmpegAvailable(false));
   }, []);
+
+  const handleOpenAuthor = async () => {
+    try {
+      await openUrl(PRODUCT_METADATA.authorUrl);
+    } catch {
+      window.open(PRODUCT_METADATA.authorUrl, "_blank");
+    }
+  };
 
   const handleSelectFolder = async () => {
     try {
@@ -869,6 +879,16 @@ function App() {
             </button>
           </div>
         )}
+        {/* Author Footer (Section 7) */}
+        <button
+          onClick={handleOpenAuthor}
+          title={`More projects and services by ${PRODUCT_METADATA.author}`}
+          className="author-nav-btn"
+        >
+          <span className="author-sparkle">✨</span>
+          <span>More by {PRODUCT_METADATA.author}</span>
+          <span className="author-arrow">↗</span>
+        </button>
       </div>
     </div>
   );

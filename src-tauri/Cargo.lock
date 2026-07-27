@@ -1339,6 +1339,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "file_forge"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "kamadak-exif",
+ "oxipng",
+ "rayon",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "walkdir",
+ "which",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4345,24 +4363,6 @@ dependencies = [
  "webview2-com",
  "window-vibrancy",
  "windows",
-]
-
-[[package]]
-name = "tauri-app"
-version = "0.1.0"
-dependencies = [
- "image",
- "kamadak-exif",
- "oxipng",
- "rayon",
- "rfd",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "walkdir",
- "which",
 ]
 
 [[package]]

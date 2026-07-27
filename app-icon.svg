@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#311042"/>
+    </linearGradient>
+    <linearGradient id="forgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#d946ef"/>
+    </linearGradient>
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Shield -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  
+  <!-- Outer Glow Ring -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="url(#forgeGrad)" stroke-width="4" opacity="0.4"/>
+
+  <!-- Anvil Base / Forge Body -->
+  <g filter="url(#glow)">
+    <!-- Base Plate -->
+    <path d="M 128 384 L 384 384 L 352 424 L 160 424 Z" fill="#475569" opacity="0.9"/>
+    
+    <!-- Anvil Main Structure -->
+    <path d="M 140 280 C 140 280, 160 360, 210 360 L 302 360 C 352 360, 372 280, 372 280 L 420 280 C 430 280, 436 270, 430 260 C 410 230, 370 210, 340 210 L 170 210 C 140 210, 100 230, 82 260 C 76 270, 82 280, 92 280 Z" fill="url(#forgeGrad)"/>
+  </g>
+
+  <!-- Lightning Spark / Magic Flame -->
+  <path d="M 270 90 L 220 200 L 260 200 L 230 310 L 310 180 L 268 180 Z" fill="url(#sparkGrad)" filter="url(#glow)"/>
+
+  <!-- Hammer Action Sparks -->
+  <circle cx="180" cy="150" r="8" fill="#38bdf8" opacity="0.8"/>
+  <circle cx="340" cy="140" r="10" fill="#e0e7ff" opacity="0.9"/>
+  <circle cx="370" cy="170" r="6" fill="#f43f5e" opacity="0.7"/>
+</svg>

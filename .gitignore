@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tauri updater keys
+.tauri-key*
+
+# Build artifacts
+site/dist
+download-manifest.json
+
